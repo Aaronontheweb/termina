@@ -387,6 +387,7 @@ namespace Termina.Hosting
         DisambiguateOnly = 1,
         ReportAllKeys = 8,
         ReportAllKeysPlusDisambiguate = 9,
+        ReportAllKeysWithAssociatedText = 25,
         ReportAllKeysWithEventTypes = 11,
     }
     public enum ScrollInputMode

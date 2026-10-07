@@ -120,9 +120,11 @@ Termina can negotiate kitty keyboard protocol flags during app startup:
 - `DisambiguateOnly` (`1`)
 - `ReportAllKeys` (`8`)
 - `ReportAllKeysPlusDisambiguate` (`9`)
+- `ReportAllKeysWithAssociatedText` (`25`)
 - `ReportAllKeysWithEventTypes` (`11`)
 
-Use `ReportAllKeys` or `ReportAllKeysPlusDisambiguate` when you want the parser to treat real arrows and wheel ticks as structurally distinct byte streams under alternate-scroll.
+Use `ReportAllKeysWithAssociatedText` when an application accepts text and must also treat real arrows and wheel ticks as structurally distinct byte streams under alternate-scroll.
+The associated-text flag preserves keyboard-layout output such as uppercase letters, shifted symbols, composed text, and input method editor (IME) text.
 
 ## Input capability result
 

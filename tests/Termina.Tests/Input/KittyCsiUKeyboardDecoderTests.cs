@@ -8,15 +8,18 @@ namespace Termina.Tests.Input;
 public class KittyCsiUKeyboardDecoderTests
 {
     [Theory]
-    [InlineData("[13;5u", ConsoleKey.Enter, '\r', false, false, true)]
-    [InlineData("[13;2u", ConsoleKey.Enter, '\r', true, false, false)]
-    [InlineData("[13;6u", ConsoleKey.Enter, '\r', true, false, true)]
-    [InlineData("[13u", ConsoleKey.Enter, '\r', false, false, false)]
-    [InlineData("[97;2;65u", ConsoleKey.A, 'a', true, false, false)]
+    [InlineData("[13;5u", ConsoleKey.Enter, "\r", false, false, true)]
+    [InlineData("[13;2u", ConsoleKey.Enter, "\r", true, false, false)]
+    [InlineData("[13;6u", ConsoleKey.Enter, "\r", true, false, true)]
+    [InlineData("[13u", ConsoleKey.Enter, "\r", false, false, false)]
+    [InlineData("[97;2;65u", ConsoleKey.A, "A", true, false, false)]
+    [InlineData("[49;2;33u", ConsoleKey.D1, "!", true, false, false)]
+    [InlineData("[0;1;229u", ConsoleKey.None, "å", false, false, false)]
+    [InlineData("[0;1;72:105u", ConsoleKey.None, "Hi", false, false, false)]
     public void TryDecode_StandardSequence_ReturnsKeyStroke(
         string sequence,
         ConsoleKey expectedKey,
-        char expectedChar,
+        string expectedText,
         bool shift,
         bool alt,
         bool ctrl)
@@ -26,7 +29,7 @@ public class KittyCsiUKeyboardDecoderTests
         Assert.True(decoded);
         Assert.NotNull(keyStroke);
         Assert.Equal(ToTerminaKey(expectedKey), keyStroke!.Key);
-        Assert.Equal(expectedChar.ToString(), keyStroke.Text);
+        Assert.Equal(expectedText, keyStroke.Text);
         Assert.Equal(KeyEventPhase.Press, keyStroke.Phase);
         Assert.Equal(shift, keyStroke.Modifiers.HasFlag(KeyModifiers.Shift));
         Assert.Equal(alt, keyStroke.Modifiers.HasFlag(KeyModifiers.Alt));

@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Text;
+
 namespace Termina.Input;
 
 /// <summary>
@@ -28,6 +30,7 @@ internal static class KittyCsiUKeyboardDecoder
         int keycode;
         var modValue = 1;
         var phase = KeyEventPhase.Press;
+        string? associatedText = null;
 
         if (semicolon < 0)
         {
@@ -52,7 +55,11 @@ internal static class KittyCsiUKeyboardDecoder
             var rest = inner[(semicolon + 1)..];
             var nextSemi = rest.IndexOf(';');
             if (nextSemi >= 0)
+            {
+                if (!TryDecodeAssociatedText(rest[(nextSemi + 1)..], out associatedText))
+                    return false;
                 rest = rest[..nextSemi];
+            }
 
             var modPart = rest;
             var colon = rest.IndexOf(':');
@@ -88,12 +95,29 @@ internal static class KittyCsiUKeyboardDecoder
         if ((modBits & 2) != 0) modifiers |= KeyModifiers.Alt;
         if ((modBits & 4) != 0) modifiers |= KeyModifiers.Control;
 
-        var (key, associatedText) = MapKeycodeToKeyStroke(keycode);
-        if (key == TerminaKey.None && associatedText is null)
+        var (key, fallbackText) = MapKeycodeToKeyStroke(keycode);
+        var textOutput = associatedText ?? fallbackText;
+        if (key == TerminaKey.None && textOutput is null)
             return true;
 
-        result = new KeyStroke(key, modifiers, phase, associatedText);
+        result = new KeyStroke(key, modifiers, phase, textOutput);
         return true;
+    }
+
+    private static bool TryDecodeAssociatedText(string value, out string? text)
+    {
+        text = null;
+        var builder = new StringBuilder();
+        foreach (var part in value.Split(':'))
+        {
+            if (!int.TryParse(part, out var codePoint) || !Rune.IsValid(codePoint))
+                return false;
+
+            builder.Append(new Rune(codePoint));
+        }
+
+        text = builder.ToString();
+        return text.Length > 0;
     }
 
     private static (TerminaKey Key, string? Text) MapKeycodeToKeyStroke(int keycode) => keycode switch
