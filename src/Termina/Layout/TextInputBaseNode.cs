@@ -104,6 +104,37 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
     }
 
     /// <summary>
+    /// Gets or sets the cursor position as a UTF-16 index into the editable text.
+    /// </summary>
+    /// <remarks>
+    /// The editable text is the text that the user types after any committed paste summary.
+    /// A committed paste summary is not part of the editable text. The valid range is therefore
+    /// zero to the length of the editable text, and it can differ from the length of <see cref="Text"/>.
+    /// The setter moves a position inside a surrogate pair or a grapheme cluster back to the start of
+    /// that text element, and it clamps other out-of-range values to the nearest end.
+    /// The setter clears the selection and invalidates the node. It does not raise <see cref="TextChanged"/>.
+    /// Use <see cref="MoveCursorToEnd"/> to move the cursor after the last character.
+    /// </remarks>
+    public int CursorPosition
+    {
+        get => _cursorPosition;
+        set
+        {
+            _cursorPosition = DisplayWidth.ClampToTextElementBoundary(_text, value);
+            _selectionStart = -1;
+            _invalidated.OnNext(Unit.Default);
+        }
+    }
+
+    /// <summary>
+    /// Moves the cursor after the last character of the editable text and clears the selection.
+    /// </summary>
+    /// <remarks>
+    /// Call this after you assign <see cref="Text"/> to start a pre-filled input with the cursor at the end.
+    /// </remarks>
+    public void MoveCursorToEnd() => CursorPosition = _text.Length;
+
+    /// <summary>
     /// Gets or sets the placeholder text shown when empty.
     /// </summary>
     public string? Placeholder { get; set; }
