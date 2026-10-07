@@ -225,10 +225,21 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
     /// <param name="viewportWidth">Width for word wrapping calculation.</param>
     public void ScrollUp(int lines = 1, int viewportWidth = 80)
     {
+        ScrollUp(lines, viewportWidth, viewportHeight: 1);
+    }
+
+    /// <summary>
+    /// Scrolls up without moving the oldest content above the viewport.
+    /// </summary>
+    /// <param name="lines">Number of lines to scroll.</param>
+    /// <param name="viewportWidth">Width for word wrapping calculation.</param>
+    /// <param name="viewportHeight">Number of visible rows.</param>
+    public void ScrollUp(int lines, int viewportWidth, int viewportHeight)
+    {
         lock (_lock)
         {
             _userScrolled = true;
-            var maxScroll = GetMaxScrollOffset(viewportWidth);
+            var maxScroll = GetMaxScrollOffset(viewportWidth, viewportHeight);
             _scrollOffset = Math.Min(_scrollOffset + lines, maxScroll);
         }
     }
@@ -269,10 +280,20 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
     /// <param name="viewportWidth">Width for word wrapping calculation.</param>
     public void ScrollToTop(int viewportWidth = 80)
     {
+        ScrollToTop(viewportWidth, viewportHeight: 1);
+    }
+
+    /// <summary>
+    /// Scrolls to the oldest viewport without moving content above it.
+    /// </summary>
+    /// <param name="viewportWidth">Width for word wrapping calculation.</param>
+    /// <param name="viewportHeight">Number of visible rows.</param>
+    public void ScrollToTop(int viewportWidth, int viewportHeight)
+    {
         lock (_lock)
         {
             _userScrolled = true;
-            _scrollOffset = GetMaxScrollOffset(viewportWidth);
+            _scrollOffset = GetMaxScrollOffset(viewportWidth, viewportHeight);
         }
     }
 
@@ -352,8 +373,18 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
     /// </param>
     public int GetMaxScrollOffset(int viewportWidth)
     {
+        return GetMaxScrollOffset(viewportWidth, viewportHeight: 1);
+    }
+
+    /// <summary>
+    /// Returns the maximum scroll offset that keeps the oldest content at the top of the viewport.
+    /// </summary>
+    /// <param name="viewportWidth">Width for word wrapping calculation.</param>
+    /// <param name="viewportHeight">Number of visible rows.</param>
+    public int GetMaxScrollOffset(int viewportWidth, int viewportHeight)
+    {
         var totalWrapped = GetWrappedLineCount(viewportWidth);
-        return Math.Max(0, totalWrapped - 1); // Can scroll up to see first line at bottom
+        return Math.Max(0, totalWrapped - Math.Max(1, viewportHeight));
     }
 
     private IEnumerable<StyledLine> GetAllStyledLinesInternal()
