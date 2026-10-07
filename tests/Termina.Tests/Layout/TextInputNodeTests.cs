@@ -3,6 +3,8 @@
 
 using Termina.Layout;
 using Termina.Input;
+using Termina.Rendering;
+using Termina.Terminal;
 
 using R3;
 namespace Termina.Tests.Layout;
@@ -501,6 +503,195 @@ public class TextInputNodeTests : IDisposable
         // Recall — should show condensed form (Text setter handles multi-line)
         PressUp(node);
         Assert.Contains("[Pasted", node.Text);
+    }
+
+    #endregion
+
+    #region Cursor placement
+
+    private const string ThumbsUpMedium = "\U0001F44D\U0001F3FD";
+
+    [Fact]
+    public void TextSetter_KeepsCursorPosition()
+    {
+        // Two-way bindings write Text back while the user edits, so the setter must not move the cursor.
+        _node.Text = "abc";
+        TypeText("x");
+        Assert.Equal("xabc", _node.Text);
+
+        TypeText("y");
+        _node.Text = "xyabcdef";
+        TypeText("z");
+
+        Assert.Equal("xyzabcdef", _node.Text);
+    }
+
+    [Fact]
+    public void MoveCursorToEnd_AfterSeedingText_AppendsTypedCharacter()
+    {
+        _node.Text = "http://localhost:11434";
+        _node.MoveCursorToEnd();
+
+        TypeText("x");
+
+        Assert.Equal("http://localhost:11434x", _node.Text);
+    }
+
+    [Fact]
+    public void CursorPosition_InsertsAtRequestedIndex()
+    {
+        _node.Text = "abcd";
+        _node.CursorPosition = 2;
+
+        TypeText("X");
+
+        Assert.Equal("abXcd", _node.Text);
+        Assert.Equal(3, _node.CursorPosition);
+    }
+
+    [Theory]
+    [InlineData(-5, 0)]
+    [InlineData(0, 0)]
+    [InlineData(3, 3)]
+    [InlineData(4, 4)]
+    [InlineData(100, 4)]
+    [InlineData(int.MaxValue, 4)]
+    public void CursorPosition_ClampsToTextRange(int requested, int expected)
+    {
+        _node.Text = "abcd";
+
+        _node.CursorPosition = requested;
+
+        Assert.Equal(expected, _node.CursorPosition);
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(2, 1)] // inside the surrogate pair
+    [InlineData(3, 1)] // between the base emoji and its skin tone modifier
+    [InlineData(4, 1)] // inside the skin tone modifier surrogate pair
+    [InlineData(5, 5)]
+    [InlineData(6, 6)]
+    public void CursorPosition_InsideTextElement_MovesToElementStart(int requested, int expected)
+    {
+        _node.Text = "a" + ThumbsUpMedium + "b";
+
+        _node.CursorPosition = requested;
+
+        Assert.Equal(expected, _node.CursorPosition);
+    }
+
+    [Fact]
+    public void CursorPosition_ClearsSelection()
+    {
+        _node.Text = "abcd";
+        _node.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, true));
+        Assert.True(_node.HasSelection);
+
+        _node.CursorPosition = 1;
+
+        Assert.False(_node.HasSelection);
+        Assert.Equal("", _node.SelectedText);
+    }
+
+    [Fact]
+    public void MoveCursorToEnd_ClearsSelection()
+    {
+        _node.Text = "abcd";
+        _node.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, true));
+
+        _node.MoveCursorToEnd();
+
+        Assert.False(_node.HasSelection);
+        Assert.Equal(4, _node.CursorPosition);
+    }
+
+    [Fact]
+    public void CursorPosition_DoesNotEmitTextChanged()
+    {
+        _node.Text = "abcd";
+        var changeCount = 0;
+        _node.TextChanged.Subscribe(_ => changeCount++);
+
+        _node.CursorPosition = 2;
+        _node.MoveCursorToEnd();
+
+        Assert.Equal(0, changeCount);
+        Assert.Equal("abcd", _node.Text);
+    }
+
+    [Fact]
+    public void CursorPosition_EmitsInvalidated()
+    {
+        _node.Text = "abcd";
+        var invalidations = 0;
+        _node.Invalidated.Subscribe(_ => invalidations++);
+
+        _node.CursorPosition = 2;
+        Assert.Equal(1, invalidations);
+
+        _node.MoveCursorToEnd();
+        Assert.Equal(2, invalidations);
+    }
+
+    [Fact]
+    public void CursorPosition_WorksBeforeFocusAndAttach()
+    {
+        Assert.False(_node.HasFocus);
+
+        _node.Text = "seed";
+        _node.MoveCursorToEnd();
+
+        Assert.False(_node.HasFocus);
+        Assert.Equal(4, _node.CursorPosition);
+    }
+
+    [Fact]
+    public void CursorPosition_IndexesEditableTextAfterPastedSegment()
+    {
+        // A newline in Text becomes a committed paste summary and leaves the editable text empty.
+        _node.Text = "line1\nline2";
+        Assert.StartsWith("[Pasted", _node.Text);
+
+        _node.CursorPosition = 50;
+        Assert.Equal(0, _node.CursorPosition);
+
+        _node.MoveCursorToEnd();
+        TypeText("x");
+
+        Assert.EndsWith("x", _node.Text);
+        Assert.StartsWith("[Pasted", _node.Text);
+    }
+
+    [Fact]
+    public void CursorPosition_AfterPastedSegment_UsesTypedTextLength()
+    {
+        _node.HandlePaste(new PasteEvent("line1\nline2"));
+        TypeText("abc");
+        Assert.Equal(3, _node.CursorPosition);
+
+        _node.CursorPosition = 1;
+        TypeText("X");
+        Assert.EndsWith("aXbc", _node.Text);
+
+        _node.MoveCursorToEnd();
+        TypeText("Z");
+        Assert.EndsWith("aXbcZ", _node.Text);
+    }
+
+    [Fact]
+    public void Render_AfterMoveCursorToEnd_ShowsEndOfLongTextWithCursor()
+    {
+        const int width = 10;
+        var terminal = new VirtualTerminal(width, 1);
+        var context = new RegionRenderContext(terminal, 0, 0, width, 1);
+        _node.Text = "http://localhost:11434";
+        _node.MoveCursorToEnd();
+
+        _node.Render(context, new Rect(0, 0, width, 1));
+
+        Assert.Equal("ost:11434", terminal.GetLine(0).TrimEnd());
+        Assert.Equal(_node.CursorColor, terminal.GetBackground(width - 1, 0));
     }
 
     #endregion

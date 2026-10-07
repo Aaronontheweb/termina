@@ -213,6 +213,7 @@ Text areas attached to a page layout tree receive runtime context automatically,
 | `MaxLength` | `int` | `0` | Max total characters (0 = unlimited) |
 | `HasSelection` | `bool` | - | Has selected text |
 | `SelectedText` | `string` | - | Currently selected text |
+| `CursorPosition` | `int` | `0` | Cursor as a UTF-16 index into the editable text (clamped, clears selection). See [Pre-filled Values](./text-input-node.md#pre-filled-values) |
 
 ### Fluent Methods
 
@@ -234,6 +235,7 @@ Text areas attached to a page layout tree receive runtime context automatically,
 |--------|-------------|
 | `HandleInput(ConsoleKeyInfo)` | Process a key press |
 | `HandlePaste(PasteEvent)` | Handle pasted content (shared base class logic) |
+| `MoveCursorToEnd()` | Move the cursor after the last editable character |
 | `Clear()` | Clear text and reset cursor |
 | `AddHistory(string)` | Programmatically add a history entry |
 | `CancelHistoryNavigation()` | Cancel history navigation and restore the saved draft |
