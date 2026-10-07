@@ -35,6 +35,11 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
     public Color? BorderColor { get; private set; }
 
     /// <summary>
+    /// Background color for the complete panel surface.
+    /// </summary>
+    public Color? Background { get; private set; }
+
+    /// <summary>
     /// Title color.
     /// </summary>
     public Color? TitleColor { get; private set; }
@@ -75,6 +80,15 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
     public PanelNode WithBorderColor(Color color)
     {
         BorderColor = color;
+        return this;
+    }
+
+    /// <summary>
+    /// Set the background color for the complete panel surface.
+    /// </summary>
+    public PanelNode WithBackground(Color color)
+    {
+        Background = color;
         return this;
     }
 
@@ -167,6 +181,12 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
         // Create a sub-context for this panel's bounds so all coordinates are relative to the panel
         var panelContext = context.CreateSubContext(bounds);
 
+        if (Background.HasValue)
+        {
+            panelContext.SetBackground(Background.Value);
+            panelContext.Clear();
+        }
+
         var hasBorder = Border != BorderStyle.None;
         var borderChars = GetBorderChars(Border);
 
@@ -237,9 +257,14 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
         {
             // Create a sub-context for the content area
             var contentContext = panelContext.CreateSubContext(contentBounds);
+            if (Background.HasValue)
+                contentContext = new SurfaceRenderContext(contentContext, Background.Value);
             var innerBounds = new Rect(0, 0, contentBounds.Width, contentBounds.Height);
             _content.Render(contentContext, innerBounds);
         }
+
+        if (Background.HasValue)
+            panelContext.ResetColors();
     }
 
     /// <inheritdoc />
@@ -285,4 +310,40 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
         char TopLeft, char TopRight,
         char BottomLeft, char BottomRight,
         char Horizontal, char Vertical);
+
+    private sealed class SurfaceRenderContext : IRenderContext
+    {
+        private readonly IRenderContext _inner;
+        private readonly Color _background;
+
+        public SurfaceRenderContext(IRenderContext inner, Color background)
+        {
+            _inner = inner;
+            _background = background;
+            _inner.SetBackground(background);
+        }
+
+        public int Width => _inner.Width;
+        public int Height => _inner.Height;
+
+        public void WriteAt(int x, int y, string text) => _inner.WriteAt(x, y, text);
+        public void WriteAt(int x, int y, char c) => _inner.WriteAt(x, y, c);
+        public void SetForeground(Color color) => _inner.SetForeground(color);
+        public void SetBackground(Color color) => _inner.SetBackground(color);
+
+        public void ResetColors()
+        {
+            _inner.ResetColors();
+            _inner.SetBackground(_background);
+        }
+
+        public void SetDecoration(TextDecoration decoration) => _inner.SetDecoration(decoration);
+        public void ApplyStyle(TextStyle style) => _inner.ApplyStyle(style);
+        public void Fill(int x, int y, int width, int height, char c = ' ') =>
+            _inner.Fill(x, y, width, height, c);
+        public void Clear() => _inner.Clear();
+
+        public IRenderContext CreateSubContext(Rect bounds) =>
+            new SurfaceRenderContext(_inner.CreateSubContext(bounds), _background);
+    }
 }

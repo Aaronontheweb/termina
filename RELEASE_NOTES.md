@@ -1,3 +1,18 @@
+# Release Notes — Termina 0.17.0-beta.6
+
+**Release date:** 2026-08-12
+
+####
+
+**New Features**
+
+- **Added optional panel background surfaces** ([#378](https://github.com/Aaronontheweb/termina/issues/378))
+  - `PanelNode.WithBackground` fills the complete panel bounds.
+  - Child color resets keep the selected surface background.
+  - Panels without a background keep their current behavior.
+
+####
+
 # Release Notes — Termina 0.17.0-beta.5
 
 **Release date:** 2026-08-11
