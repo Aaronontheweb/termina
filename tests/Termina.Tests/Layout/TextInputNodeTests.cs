@@ -3,9 +3,11 @@
 
 using Termina.Layout;
 using Termina.Input;
+using Termina.Reactive;
 using Termina.Rendering;
 using Termina.Terminal;
 
+using Microsoft.Extensions.Time.Testing;
 using R3;
 namespace Termina.Tests.Layout;
 
@@ -632,6 +634,55 @@ public class TextInputNodeTests : IDisposable
 
         _node.MoveCursorToEnd();
         Assert.Equal(2, invalidations);
+    }
+
+    [Fact]
+    public void CursorPosition_SameValue_StillInvalidatesAndClearsSelection()
+    {
+        // Matches the Text setter, which invalidates and clears the selection even when nothing changes.
+        _node.Text = "abcd";
+        _node.MoveCursorToEnd();
+        _node.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, true));
+        Assert.True(_node.HasSelection);
+        var invalidations = 0;
+        _node.Invalidated.Subscribe(_ => invalidations++);
+
+        _node.CursorPosition = _node.CursorPosition;
+
+        Assert.False(_node.HasSelection);
+        Assert.Equal(1, invalidations);
+    }
+
+    [Fact]
+    public void MoveCursorToEnd_WhenFocusedInBlinkOffPhase_ShowsCursorImmediately()
+    {
+        var timeProvider = new FakeTimeProvider();
+        using var frameProvider = new TerminaRenderFrameProvider(() => { }, timeProvider, TimeSpan.FromMilliseconds(10));
+        using var node = new TextInputNode(cursorBlinkMs: 100);
+        LayoutRuntimeContextInjector.Apply(node, new LayoutRuntimeContext(frameProvider, timeProvider, () => { }));
+        node.Text = "ab";
+        node.OnFocused();
+        timeProvider.Advance(TimeSpan.FromMilliseconds(100));
+        frameProvider.AdvanceFrame();
+        var terminal = new VirtualTerminal(10, 1);
+        var context = new RegionRenderContext(terminal, 0, 0, 10, 1);
+        node.Render(context, new Rect(0, 0, 10, 1));
+        Assert.NotEqual(node.CursorColor, terminal.GetBackground(0, 0));
+
+        node.MoveCursorToEnd();
+        node.Render(context, new Rect(0, 0, 10, 1));
+
+        Assert.Equal(node.CursorColor, terminal.GetBackground(2, 0));
+    }
+
+    [Fact]
+    public void CursorPosition_WhenUnfocused_DoesNotStartAnimation()
+    {
+        _node.Text = "abcd";
+
+        _node.MoveCursorToEnd();
+
+        Assert.False(_node.IsAnimating);
     }
 
     [Fact]

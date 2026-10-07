@@ -87,7 +87,7 @@ endpoint.MoveCursorToEnd();
 
 `Text` keeps the cursor where it is on purpose. A binding that writes `Text` back while the user types does not make the cursor jump.
 
-`CursorPosition` is a UTF-16 index into the editable text, the text the user types after any committed paste summary. A multi-line value that you assign to `Text` becomes a paste summary, so the editable text is empty and the only valid position is 0. The setter moves a position inside a surrogate pair or a grapheme cluster to the start of that element and clamps other out-of-range values. It clears the selection, invalidates the node, and does not raise `TextChanged`. It works before the node is attached or focused.
+`CursorPosition` is a UTF-16 index into the editable text, the text after the last committed segment. It is not an index into `Text`. A multi-line paste commits the text before it, and the paste itself, as segments the cursor cannot enter. For example, when `Text` is `abc[Pasted 2 lines, 5 chars] def`, the editable text is ` def` and the valid range is 0 to 4. A multi-line value that you assign to `Text` becomes a paste summary, so the editable text is empty and the only valid position is 0. The setter moves a position inside a surrogate pair or a grapheme cluster to the start of that element and clamps other out-of-range values. Like the `Text` setter, it clears the selection and invalidates the node even when the position does not change, and it does not raise `TextChanged`. A focused node shows the cursor and restarts the blink cycle. It works before the node is attached or focused.
 
 ## Password Mode
 
