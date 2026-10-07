@@ -104,6 +104,42 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
     }
 
     /// <summary>
+    /// Gets or sets the cursor position as a UTF-16 index into the editable text.
+    /// </summary>
+    /// <remarks>
+    /// The editable text is the text after the last committed segment. A multi-line paste commits the text
+    /// before it, and the paste itself, as segments that the cursor cannot enter. The value is therefore not
+    /// an index into <see cref="Text"/>. For example, when <see cref="Text"/> is
+    /// <c>abc[Pasted 2 lines, 5 chars] def</c> and the editable text is <c> def</c>, the valid range is 0 to 4.
+    /// The setter moves a position inside a surrogate pair or a grapheme cluster back to the start of
+    /// that text element, and it clamps other out-of-range values to the nearest end.
+    /// Like the <see cref="Text"/> setter, the setter clears the selection and invalidates the node even when the
+    /// position does not change. It does not raise <see cref="TextChanged"/>.
+    /// A focused node shows the cursor and restarts the blink cycle, as a key press does.
+    /// Use <see cref="MoveCursorToEnd"/> to move the cursor after the last character.
+    /// </remarks>
+    public int CursorPosition
+    {
+        get => _cursorPosition;
+        set
+        {
+            _cursorPosition = DisplayWidth.ClampToTextElementBoundary(_text, value);
+            _selectionStart = -1;
+            if (_hasFocus)
+                RestartCursorBlink();
+            _invalidated.OnNext(Unit.Default);
+        }
+    }
+
+    /// <summary>
+    /// Moves the cursor after the last character of the editable text and clears the selection.
+    /// </summary>
+    /// <remarks>
+    /// Call this after you assign <see cref="Text"/> to start a pre-filled input with the cursor at the end.
+    /// </remarks>
+    public void MoveCursorToEnd() => CursorPosition = _text.Length;
+
+    /// <summary>
     /// Gets or sets the placeholder text shown when empty.
     /// </summary>
     public string? Placeholder { get; set; }
@@ -256,11 +292,7 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         TerminaTrace.Input.Trace(this, "HandleInput: key={0}, char='{1}'", key.Key, key.KeyChar);
 
         // Reset cursor to visible on any input - restart the blink cycle
-        _cursorVisible = true;
-        _cursorTimerSubscription?.Dispose();
-        _cursorTimerSubscription = null;
-        IsAnimating = false;
-        Start();
+        RestartCursorBlink();
 
         var handled = key.Key switch
         {
@@ -286,6 +318,15 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         }
 
         return handled;
+    }
+
+    private void RestartCursorBlink()
+    {
+        _cursorVisible = true;
+        _cursorTimerSubscription?.Dispose();
+        _cursorTimerSubscription = null;
+        IsAnimating = false;
+        Start();
     }
 
     /// <summary>
