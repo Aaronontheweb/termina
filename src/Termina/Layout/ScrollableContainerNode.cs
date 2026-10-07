@@ -239,7 +239,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, ISc
         _invalidated.OnNext(Unit.Default);
     }
 
-    private void ApplyAutoScrollPolicy()
+    private void ApplyAutoScrollPolicy(bool? wasNearBottom = null)
     {
         switch (AutoScroll)
         {
@@ -248,7 +248,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, ISc
                 break;
             case AutoScrollPolicy.TailWhenAtBottom:
                 // If we were at or near the bottom before, stay at the bottom
-                if (IsNearBottom || _previousContentHeight <= _viewportHeight)
+                if ((wasNearBottom ?? IsNearBottom) || _previousContentHeight <= _viewportHeight)
                 {
                     _scrollOffset = MaxScroll;
                 }
@@ -274,6 +274,8 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, ISc
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
+        var wasNearBottom = IsNearBottom;
+
         // Calculate available width accounting for scrollbar
         var contentWidth = ShowScrollbar && available.Width > 1
             ? available.Width - 1
@@ -290,7 +292,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, ISc
         // Apply auto-scroll if content height changed
         if (_contentHeight != _previousContentHeight)
         {
-            ApplyAutoScrollPolicy();
+            ApplyAutoScrollPolicy(wasNearBottom);
         }
 
         var width = WidthConstraint.Compute(available.Width, contentSize.Width + (ShowScrollbar ? 1 : 0), available.Width);
