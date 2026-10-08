@@ -1,3 +1,23 @@
+# Release Notes — Termina 0.16.3
+
+**Release date:** 2026-10-08
+
+####
+
+**Bug Fixes**
+
+- **Added a way to place the cursor in a pre-filled text input** ([#395](https://github.com/Aaronontheweb/termina/pull/395), fixes [#394](https://github.com/Aaronontheweb/termina/issues/394))
+  - Assigning `Text` on a `TextInputNode` or `TextAreaNode` leaves the cursor where it was, so a pre-filled field started with the cursor in front of its default text.
+  - `TextInputBaseNode.CursorPosition` gets and sets the cursor as a UTF-16 index into the editable text, clamped to a text-element boundary.
+  - `TextInputBaseNode.MoveCursorToEnd()` moves the cursor to the end of the text.
+  - Both work before the node is attached or focused. The `Text` setter is unchanged.
+
+**Maintenance**
+
+- **Bumped `Microsoft.SourceLink.GitHub` to 10.0.303** ([#396](https://github.com/Aaronontheweb/termina/pull/396)) to clear the NU1902 advisory on `Microsoft.Build.Tasks.Git`.
+
+####
+
 # Release Notes — Termina 0.16.2
 
 **Release date:** 2026-08-14
