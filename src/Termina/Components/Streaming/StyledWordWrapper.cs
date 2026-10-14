@@ -80,23 +80,13 @@ public static class StyledWordWrapper
                     currentWidth = 0;
                 }
 
-                // Break long word into chunks while preserving styles
-                var remaining = word.Line;
-                while (remaining.ColumnCount > width)
+                // Break long word into rows in one pass, preserving styles. The unfinished last
+                // row becomes the start of the current line.
+                var rest = BreakLongWord(word.Line, wordWidth, width, result);
+                if (rest is { IsEmpty: false })
                 {
-                    var chunk = remaining.SliceByColumns(0, width);
-                    if (chunk.IsEmpty)
-                        break;
-
-                    result.Add(chunk);
-                    remaining = remaining.SliceByColumns(chunk.ColumnCount, int.MaxValue / 2);
-                }
-
-                // Remainder becomes start of new line
-                if (!remaining.IsEmpty)
-                {
-                    currentLine = remaining;
-                    currentWidth = remaining.ColumnCount;
+                    currentLine = rest;
+                    currentWidth = rest.ColumnCount;
                 }
             }
             else if (currentWidth == 0)
@@ -140,6 +130,116 @@ public static class StyledWordWrapper
         }
 
         return result.Count > 0 ? result : [new StyledLine()];
+    }
+
+    /// <summary>
+    /// Breaks a word that is wider than the available width into rows of at most
+    /// <paramref name="width"/> columns, in a single pass over its text elements.
+    /// </summary>
+    /// <remarks>
+    /// Each text element is measured once and rows are emitted as the column budget fills. This
+    /// keeps the cost linear in the length of the word. Re-slicing the remainder for every row
+    /// costs a walk of the whole remainder per row, which is quadratic for a long unbroken word.
+    /// A zero-width element at the start of a segment is dropped, as <see cref="StyledLine.SliceByColumns"/>
+    /// drops it. A wide element that does not fit a row starts the next row. When even an empty row
+    /// cannot hold the next element, the rest of the word stays together as the current line.
+    /// </remarks>
+    /// <returns>The unfinished last row, which the caller continues to fill, or null if nothing is left.</returns>
+    private static StyledLine? BreakLongWord(StyledLine word, int wordWidth, int width, List<StyledLine> result)
+    {
+        var segments = word.Segments;
+        var cells = new DisplayCell[segments.Count][];
+        for (var i = 0; i < cells.Length; i++)
+            cells[i] = DisplayWidth.EnumerateCells(segments[i].Text).ToArray();
+
+        var segmentIndex = 0;
+        var cellIndex = 0;
+        var remainingColumns = wordWidth;
+        var slicedOnce = false;
+
+        while (remainingColumns > width)
+        {
+            var row = new StyledLine();
+            var taken = 0;
+            var s = segmentIndex;
+            var c = cellIndex;
+            var nextSegment = segmentIndex;
+            var nextCell = cellIndex;
+
+            for (; s < segments.Count; s++, c = 0)
+            {
+                var segmentCells = cells[s];
+                var text = segments[s].Text;
+
+                // A zero-width element at the start of a segment is dropped
+                if (c == 0)
+                {
+                    while (c < segmentCells.Length && segmentCells[c].ColumnWidth == 0)
+                        c++;
+                }
+
+                var end = c;
+                while (end < segmentCells.Length && taken + segmentCells[end].ColumnWidth <= width)
+                {
+                    taken += segmentCells[end].ColumnWidth;
+                    end++;
+                }
+
+                if (end > c)
+                {
+                    var start = segmentCells[c].StartIndex;
+                    var stop = end < segmentCells.Length ? segmentCells[end].StartIndex : text.Length;
+                    row.Append(new StyledSegment(text.Substring(start, stop - start), segments[s].Style));
+                }
+
+                if (end < segmentCells.Length)
+                {
+                    // The next element does not fit in this row
+                    nextSegment = s;
+                    nextCell = end;
+                    break;
+                }
+
+                nextSegment = s + 1;
+                nextCell = 0;
+
+                if (taken >= width)
+                    break;
+            }
+
+            // Not even one element fits: keep the rest of the word together as the current line
+            if (row.IsEmpty)
+                break;
+
+            result.Add(row);
+            remainingColumns -= taken;
+            segmentIndex = nextSegment;
+            cellIndex = nextCell;
+            slicedOnce = true;
+        }
+
+        if (!slicedOnce)
+            return word;
+
+        var rest = new StyledLine();
+        for (var s = segmentIndex; s < segments.Count; s++)
+        {
+            var segmentCells = cells[s];
+            var c = s == segmentIndex ? cellIndex : 0;
+            if (c == 0)
+            {
+                while (c < segmentCells.Length && segmentCells[c].ColumnWidth == 0)
+                    c++;
+            }
+
+            if (c < segmentCells.Length)
+            {
+                var start = segmentCells[c].StartIndex;
+                rest.Append(new StyledSegment(segments[s].Text.Substring(start), segments[s].Style));
+            }
+        }
+
+        return rest;
     }
 
     /// <summary>
