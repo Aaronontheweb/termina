@@ -23,7 +23,7 @@ public sealed class TextAreaNode : TextInputBaseNode
     private int _maxLines;
     private bool _wordWrap = true;
 
-    private record struct WrappedLine(int TextStartIndex, int Length, int ColumnCount);
+    internal record struct WrappedLine(int TextStartIndex, int Length, int ColumnCount);
 
     public TextAreaNode(int cursorBlinkMs = 530)
         : base(cursorBlinkMs)
@@ -550,7 +550,15 @@ public sealed class TextAreaNode : TextInputBaseNode
         return result;
     }
 
-    private static void WrapLogicalLine(
+    /// <summary>
+    /// Wraps one logical line (no newline) into rows, breaking after whitespace when a row overflows.
+    /// </summary>
+    /// <remarks>
+    /// Each row looks only at a window of text that starts at the row and holds a little more than
+    /// one row, so wrapping costs time proportional to the line length. Measuring the whole
+    /// remainder of the line for every row is quadratic, and it ran after every edit.
+    /// </remarks>
+    internal static void WrapLogicalLine(
         List<WrappedLine> result, string text, int lineStart, int lineLength, int width)
     {
         var pos = lineStart;
@@ -558,18 +566,70 @@ public sealed class TextAreaNode : TextInputBaseNode
 
         while (pos < end)
         {
-            var remainingText = text[pos..end];
-            var remainingWidth = DisplayWidth.GetColumnCount(remainingText);
-            if (remainingWidth <= width)
+            // Find where the row would end if it broke at the width, and whether the rest fits.
+            var window = Math.Min(end - pos, Math.Max(64, width * 4));
+            int breakOffset;
+            int remainingWidth;
+            bool fits;
+            while (true)
+            {
+                // Do not cut a surrogate pair: a half pair would hide the code point that the
+                // boundary before the last element depends on
+                if (pos + window < end && char.IsHighSurrogate(text[pos + window - 1]))
+                    window++;
+
+                var truncated = pos + window < end;
+                var windowText = text.Substring(pos, window);
+                var columns = 0;
+                breakOffset = 0;
+                var firstCellLength = 0;
+                var cellCount = 0;
+                var decided = false;
+                fits = false;
+
+                foreach (var cell in DisplayWidth.EnumerateCells(windowText))
+                {
+                    cellCount++;
+
+                    // The last element of a cut window may continue past the cut, so it is not final
+                    if (truncated && cell.StartIndex + cell.Length >= window)
+                        break;
+
+                    if (cellCount == 1)
+                        firstCellLength = cell.Length;
+
+                    if (columns + cell.ColumnWidth > width)
+                    {
+                        decided = true;
+                        break;
+                    }
+
+                    columns += cell.ColumnWidth;
+                    breakOffset = cell.StartIndex + cell.Length;
+                }
+
+                if (!decided && !truncated)
+                {
+                    fits = true;
+                    decided = true;
+                }
+
+                if (decided)
+                {
+                    if (!fits && breakOffset == 0)
+                        breakOffset = firstCellLength;
+                    remainingWidth = columns;
+                    break;
+                }
+
+                window = Math.Min(end - pos, window * 2);
+            }
+
+            if (fits)
             {
                 result.Add(new WrappedLine(pos, end - pos, remainingWidth));
                 break;
             }
-
-            // Try to break at a word boundary
-            var breakOffset = DisplayWidth.GetStringIndexForColumnCount(remainingText, width);
-            if (breakOffset == 0)
-                breakOffset = DisplayWidth.EnumerateCells(remainingText).First().Length;
 
             var breakPos = pos + breakOffset;
             var wordBreak = breakPos;

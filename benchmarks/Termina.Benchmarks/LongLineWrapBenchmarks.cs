@@ -23,6 +23,9 @@ public class LongLineWrapBenchmarks
     private const int Width = 120;
     private const int Height = 40;
 
+    private string _text = null!;
+    private TextAreaNode _textArea = null!;
+    private bool _flip;
     private StyledLine _line = null!;
     private StreamingTextNode _node = null!;
     private VirtualTerminal _terminal = null!;
@@ -39,6 +42,8 @@ public class LongLineWrapBenchmarks
     public void Setup()
     {
         var text = Build(Content, Length);
+        _text = text;
+        _textArea = new TextAreaNode();
         _line = new StyledLine();
         // Two styles so that the wrapper has to carry styles across the breaks.
         var half = text.Length / 2;
@@ -57,6 +62,18 @@ public class LongLineWrapBenchmarks
 
     [Benchmark]
     public int WrapLine() => StyledWordWrapper.WrapLine(_line, Width).Count;
+
+    [Benchmark]
+    public int WordWrapperWrapLine() => WordWrapper.WrapLine(_text, Width).Count;
+
+    // Setting the text invalidates the wrapped rows, as an edit does, and Measure wraps them again.
+    [Benchmark]
+    public Size TextAreaMeasure()
+    {
+        _flip = !_flip;
+        _textArea.Text = _flip ? _text : _text + "x";
+        return _textArea.Measure(new Size(Width, Height));
+    }
 
     [Benchmark]
     public void RenderStreamingTextNode() => _node.Render(_context, _bounds);

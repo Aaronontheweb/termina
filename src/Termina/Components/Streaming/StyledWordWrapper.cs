@@ -82,12 +82,8 @@ public static class StyledWordWrapper
 
                 // Break long word into rows in one pass, preserving styles. The unfinished last
                 // row becomes the start of the current line.
-                var rest = BreakLongWord(word.Line, wordWidth, width, result);
-                if (rest is { IsEmpty: false })
-                {
-                    currentLine = rest;
-                    currentWidth = rest.ColumnCount;
-                }
+                currentLine = BreakLongWord(word.Line, wordWidth, width, result);
+                currentWidth = currentLine.ColumnCount;
             }
             else if (currentWidth == 0)
             {
@@ -143,99 +139,96 @@ public static class StyledWordWrapper
     /// A zero-width element at the start of a segment is dropped, as <see cref="StyledLine.SliceByColumns"/>
     /// drops it. A wide element that does not fit a row starts the next row. When even an empty row
     /// cannot hold the next element, the rest of the word stays together as the current line.
+    /// A zero-width-only segment between two segments of the same style is dropped before the
+    /// neighbours join. The 0.16.3 slicer measured the joined text again, and when the join formed
+    /// one text element (a flag, an emoji modifier sequence) its widths no longer matched and it
+    /// could repeat text. Here the widths are the ones measured per segment.
     /// </remarks>
-    /// <returns>The unfinished last row, which the caller continues to fill, or null if nothing is left.</returns>
-    private static StyledLine? BreakLongWord(StyledLine word, int wordWidth, int width, List<StyledLine> result)
+    /// <returns>The unfinished last row, which the caller continues to fill. It is never null.</returns>
+    private static StyledLine BreakLongWord(StyledLine word, int wordWidth, int width, List<StyledLine> result)
     {
         var segments = word.Segments;
-        var cells = new DisplayCell[segments.Count][];
-        for (var i = 0; i < cells.Length; i++)
-            cells[i] = DisplayWidth.EnumerateCells(segments[i].Text).ToArray();
-
-        var segmentIndex = 0;
-        var cellIndex = 0;
+        var row = new StyledLine();
+        var taken = 0;
         var remainingColumns = wordWidth;
-        var slicedOnce = false;
+        var emittedRow = false;
 
-        while (remainingColumns > width)
+        for (var s = 0; s < segments.Count; s++)
         {
-            var row = new StyledLine();
-            var taken = 0;
-            var s = segmentIndex;
-            var c = cellIndex;
-            var nextSegment = segmentIndex;
-            var nextCell = cellIndex;
+            var text = segments[s].Text;
+            var style = segments[s].Style;
+            var pieceStart = -1; // start of the part of this segment that belongs to the current row
+            var leading = true;
 
-            for (; s < segments.Count; s++, c = 0)
+            foreach (var cell in DisplayWidth.EnumerateCells(text))
             {
-                var segmentCells = cells[s];
-                var text = segments[s].Text;
-
                 // A zero-width element at the start of a segment is dropped
-                if (c == 0)
+                if (leading && cell.ColumnWidth == 0)
+                    continue;
+                leading = false;
+
+                if (taken + cell.ColumnWidth <= width)
                 {
-                    while (c < segmentCells.Length && segmentCells[c].ColumnWidth == 0)
-                        c++;
+                    if (pieceStart < 0)
+                        pieceStart = cell.StartIndex;
+                    taken += cell.ColumnWidth;
+                    continue;
                 }
 
-                var end = c;
-                while (end < segmentCells.Length && taken + segmentCells[end].ColumnWidth <= width)
+                // This element does not fit in the current row
+                if (pieceStart >= 0)
+                    row.Append(new StyledSegment(text.Substring(pieceStart, cell.StartIndex - pieceStart), style));
+
+                if (row.IsEmpty)
                 {
-                    taken += segmentCells[end].ColumnWidth;
-                    end++;
+                    // Not even one element fits. Before the first row the word stays as it was,
+                    // later the rest of the word stays together.
+                    return emittedRow ? CollectRest(segments, s, cell.StartIndex) : word;
                 }
 
-                if (end > c)
-                {
-                    var start = segmentCells[c].StartIndex;
-                    var stop = end < segmentCells.Length ? segmentCells[end].StartIndex : text.Length;
-                    row.Append(new StyledSegment(text.Substring(start, stop - start), segments[s].Style));
-                }
+                result.Add(row);
+                emittedRow = true;
+                remainingColumns -= taken;
+                if (remainingColumns <= width)
+                    return CollectRest(segments, s, cell.StartIndex);
 
-                if (end < segmentCells.Length)
-                {
-                    // The next element does not fit in this row
-                    nextSegment = s;
-                    nextCell = end;
-                    break;
-                }
+                row = new StyledLine();
+                taken = 0;
+                pieceStart = -1;
 
-                nextSegment = s + 1;
-                nextCell = 0;
-
-                if (taken >= width)
-                    break;
+                // The element starts the next row
+                if (cell.ColumnWidth > width)
+                    return CollectRest(segments, s, cell.StartIndex);
+                pieceStart = cell.StartIndex;
+                taken = cell.ColumnWidth;
             }
 
-            // Not even one element fits: keep the rest of the word together as the current line
-            if (row.IsEmpty)
-                break;
-
-            result.Add(row);
-            remainingColumns -= taken;
-            segmentIndex = nextSegment;
-            cellIndex = nextCell;
-            slicedOnce = true;
+            if (pieceStart >= 0)
+                row.Append(new StyledSegment(text.Substring(pieceStart), style));
         }
 
-        if (!slicedOnce)
-            return word;
+        // Unreachable for a word wider than the width: some element always overflows a row.
+        return emittedRow ? row : word;
+    }
 
+    /// <summary>
+    /// Copies the rest of a word, from a text element in one segment to the end, dropping a
+    /// zero-width element at the start of each later segment.
+    /// </summary>
+    private static StyledLine CollectRest(IReadOnlyList<StyledSegment> segments, int segmentIndex, int startIndex)
+    {
         var rest = new StyledLine();
-        for (var s = segmentIndex; s < segments.Count; s++)
-        {
-            var segmentCells = cells[s];
-            var c = s == segmentIndex ? cellIndex : 0;
-            if (c == 0)
-            {
-                while (c < segmentCells.Length && segmentCells[c].ColumnWidth == 0)
-                    c++;
-            }
+        rest.Append(new StyledSegment(segments[segmentIndex].Text.Substring(startIndex), segments[segmentIndex].Style));
 
-            if (c < segmentCells.Length)
+        for (var s = segmentIndex + 1; s < segments.Count; s++)
+        {
+            foreach (var cell in DisplayWidth.EnumerateCells(segments[s].Text))
             {
-                var start = segmentCells[c].StartIndex;
-                rest.Append(new StyledSegment(segments[s].Text.Substring(start), segments[s].Style));
+                if (cell.ColumnWidth == 0)
+                    continue;
+
+                rest.Append(new StyledSegment(segments[s].Text.Substring(cell.StartIndex), segments[s].Style));
+                break;
             }
         }
 
