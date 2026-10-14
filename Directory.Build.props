@@ -10,18 +10,13 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.16.3</VersionPrefix>
+    <VersionPrefix>0.16.4</VersionPrefix>
     <PackageReleaseNotes>**Bug Fixes**
 
-- **Added a way to place the cursor in a pre-filled text input** ([#395](https://github.com/Aaronontheweb/termina/pull/395), fixes [#394](https://github.com/Aaronontheweb/termina/issues/394))
-  - Assigning `Text` on a `TextInputNode` or `TextAreaNode` leaves the cursor where it was, so a pre-filled field started with the cursor in front of its default text.
-  - `TextInputBaseNode.CursorPosition` gets and sets the cursor as a UTF-16 index into the editable text, clamped to a text-element boundary.
-  - `TextInputBaseNode.MoveCursorToEnd()` moves the cursor to the end of the text.
-  - Both work before the node is attached or focused. The `Text` setter is unchanged.
-
-**Maintenance**
-
-- **Bumped `Microsoft.SourceLink.GitHub` to 10.0.303** ([#396](https://github.com/Aaronontheweb/termina/pull/396)) to clear the NU1902 advisory on `Microsoft.Build.Tasks.Git`.</PackageReleaseNotes>
+- **Wrapping a very long line is now linear in its length** ([#398](https://github.com/Aaronontheweb/termina/pull/398), fixes [#397](https://github.com/Aaronontheweb/termina/issues/397))
+  - `StyledWordWrapper` (used by `StreamingTextNode`), `WordWrapper` (used by `TextNode`) and `TextAreaNode` re-measured the rest of a long word or line for every wrapped row, so wrapping was quadratic in line length.
+  - A line of 100,000 characters with no break opportunities now wraps in milliseconds instead of seconds. An app rendering such a line no longer pins a core or stops handling input at normal frame rates.
+  - Wrapped output is the same as 0.16.3, with one exception: a zero-width-only segment between two segments of the same style inside a word wider than the row. 0.16.3 could draw part of that text twice; it is now drawn once.</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->

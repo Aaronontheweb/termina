@@ -1,3 +1,18 @@
+# Release Notes — Termina 0.16.4
+
+**Release date:** 2026-10-14
+
+####
+
+**Bug Fixes**
+
+- **Wrapping a very long line is now linear in its length** ([#398](https://github.com/Aaronontheweb/termina/pull/398), fixes [#397](https://github.com/Aaronontheweb/termina/issues/397))
+  - `StyledWordWrapper` (used by `StreamingTextNode`), `WordWrapper` (used by `TextNode`) and `TextAreaNode` re-measured the rest of a long word or line for every wrapped row, so wrapping was quadratic in line length.
+  - A line of 100,000 characters with no break opportunities now wraps in milliseconds instead of seconds. An app rendering such a line no longer pins a core or stops handling input at normal frame rates.
+  - Wrapped output is the same as 0.16.3, with one exception: a zero-width-only segment between two segments of the same style inside a word wider than the row. 0.16.3 could draw part of that text twice; it is now drawn once.
+
+####
+
 # Release Notes — Termina 0.16.3
 
 **Release date:** 2026-10-08
