@@ -19,6 +19,9 @@ public sealed class TextAreaNode : TextInputBaseNode
     private int _scrollTopLine;
     private int _lastKnownWidth;
     private List<WrappedLine>? _wrappedLines;
+    // The width that _wrappedLines was built for. Measure and Render set _lastKnownWidth before
+    // they ask for the wrap, so the cache cannot use _lastKnownWidth as its key.
+    private int _wrappedLinesWidth;
     private ConsoleModifiers _newlineModifier = ConsoleModifiers.Control;
     private int _maxLines;
     private bool _wordWrap = true;
@@ -510,10 +513,11 @@ public sealed class TextAreaNode : TextInputBaseNode
         if (width <= 0)
             width = 1;
 
-        if (_wrappedLines is not null && _lastKnownWidth == width)
+        if (_wrappedLines is not null && _wrappedLinesWidth == width)
             return _wrappedLines;
 
         _lastKnownWidth = width;
+        _wrappedLinesWidth = width;
         _wrappedLines = ComputeWrappedLines(width);
         return _wrappedLines;
     }

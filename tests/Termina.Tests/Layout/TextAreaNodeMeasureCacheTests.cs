@@ -83,6 +83,24 @@ public class TextAreaNodeMeasureCacheTests
         Assert.Equal(Render(fresh, available), Render(cached, available));
     }
 
+    [Fact]
+    public void Measure_and_render_after_a_width_change_match_a_new_node()
+    {
+        // Measure and Render store the new width before they ask for the wrap. The wrap cache must
+        // still see the width change, or the node keeps the line breaks of the old width.
+        const string text = "the quick brown fox jumps over the lazy dog";
+        var wide = new Size(60, 10);
+        var narrow = new Size(12, 10);
+        var cached = new TextAreaNode { Text = text };
+        cached.Measure(wide);
+        Render(cached, wide);
+
+        var fresh = new TextAreaNode { Text = text };
+
+        Assert.Equal(fresh.Measure(narrow), cached.Measure(narrow));
+        Assert.Equal(Render(fresh, narrow), Render(cached, narrow));
+    }
+
     private static TextAreaNode CreateNode()
     {
         var node = new TextAreaNode();
