@@ -22,12 +22,15 @@ internal struct ColumnCountCache
     /// </summary>
     public int Get(string text)
     {
-        // string.Equals compares references first, then compares the characters without allocation.
+        if (ReferenceEquals(_text, text))
+            return _columns;
+
+        // An equal string in a new object keeps the count. Keep the new reference, so the next call
+        // with it is a reference check, not a compare of every character.
         if (!string.Equals(_text, text, StringComparison.Ordinal))
-        {
             _columns = DisplayWidth.GetColumnCount(text);
-            _text = text;
-        }
+
+        _text = text;
 
         return _columns;
     }

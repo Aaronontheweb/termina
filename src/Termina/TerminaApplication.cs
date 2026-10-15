@@ -73,9 +73,14 @@ public sealed class TerminaApplication : IInlineOutput
     private bool _wheelScrollEnabledByApp;
     private int _pendingNavigationRequests;
 
-    // 1 when RequestRedraw ran after the start of the last render. A RedrawRequested event that
-    // finds 0 asks for a frame that a later render already drew, so the loop does not render again.
+    // 1 when RequestRedraw ran after the start of the last render. An ApplicationRedrawRequested
+    // event that finds 0 asks for a frame that a later render already drew, so the loop does not
+    // render again.
     private int _redrawPending;
+
+    // 1 after RunAsync stopped its loop. Work that a caller awaits and that arrives after this
+    // point cannot run, so InvokeAsync cancels it.
+    private int _loopStopped;
     private TerminalInputCapabilities _inputCapabilities = new(
         TerminalCapabilityAvailability.Unknown,
         TerminalInputCapabilitySource.None);
@@ -431,8 +436,9 @@ public sealed class TerminaApplication : IInlineOutput
         // Set the flag before the event is queued, so the loop always sees the flag when it reads the event.
         Volatile.Write(ref _redrawPending, 1);
 
-        // Push a redraw event to the event channel - this will trigger re-render
-        _eventChannel.Writer.TryWrite(RedrawRequested.Instance);
+        // The loop can skip this event when a later render already drew the change. A
+        // RedrawRequested.Instance that an input source writes always causes a render.
+        _eventChannel.Writer.TryWrite(ApplicationRedrawRequested.Instance);
     }
 
     /// <inheritdoc />
@@ -504,9 +510,15 @@ public sealed class TerminaApplication : IInlineOutput
                 () => completion.TrySetCanceled(cancellationToken));
         }
 
+        void Abandon()
+        {
+            completion.TrySetCanceled();
+            cancellationRegistration.Dispose();
+        }
+
         try
         {
-            Post(() =>
+            var work = new LoopWorkRequested(() =>
             {
                 try
                 {
@@ -529,13 +541,21 @@ public sealed class TerminaApplication : IInlineOutput
                 {
                     cancellationRegistration.Dispose();
                 }
-            });
+            }, Abandon);
+
+            if (!_eventChannel.Writer.TryWrite(work))
+                throw new InvalidOperationException("Unable to post work to the Termina event loop.");
         }
         catch
         {
             cancellationRegistration.Dispose();
             throw;
         }
+
+        // The loop drains the queue when it stops. Work written after that drain is not drained,
+        // so cancel it here. Interlocked gives a full fence between the write above and this read.
+        if (Interlocked.CompareExchange(ref _loopStopped, 0, 0) != 0)
+            Abandon();
 
         return completion.Task;
     }
@@ -619,6 +639,7 @@ public sealed class TerminaApplication : IInlineOutput
         TerminaTrace.Input.Debug(this, "Creating linked cancellation token");
         _shutdownCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var linkedToken = _shutdownCts.Token;
+        Interlocked.Exchange(ref _loopStopped, 0);
         TerminaTrace.Input.Debug(this, "Linked token created");
 
         // Start each input source - they push to the shared channel
@@ -763,6 +784,8 @@ public sealed class TerminaApplication : IInlineOutput
             }
             finally
             {
+                Interlocked.Exchange(ref _loopStopped, 1);
+                AbandonQueuedEvents();
                 _shutdownCts.Dispose();
                 _shutdownCts = null;
             }
@@ -775,6 +798,10 @@ public sealed class TerminaApplication : IInlineOutput
     private void ProcessEvent(object evt)
     {
         TerminaTrace.Input.Trace(this, "ProcessEvent: {0}", evt.GetType().Name);
+
+        // Subscribers see every redraw request as the public event.
+        if (evt is ApplicationRedrawRequested)
+            evt = RedrawRequested.Instance;
 
         // Framework-level Ctrl+C handling: first press shows a hint, second press
         // within CtrlCDoublePressWindow shuts the app down. We scope this to raw-input
@@ -995,7 +1022,7 @@ public sealed class TerminaApplication : IInlineOutput
         ProcessEvent(evt);
 
         return renderNeeded
-            || evt is not RedrawRequested
+            || evt is not ApplicationRedrawRequested
             || Volatile.Read(ref _redrawPending) != 0;
     }
 
@@ -1005,6 +1032,30 @@ public sealed class TerminaApplication : IInlineOutput
         // one event-loop turn away from being replaced.
         if (renderNeeded && !HasPendingNavigationRequests())
             RenderCurrentPage();
+    }
+
+    /// <summary>
+    /// Empties the queue after the loop stopped. A batch stops at a shutdown request, so events can
+    /// stay in the queue. This cancels each task that a caller awaits for one of them, and releases
+    /// the cancellation resources of each inline commit.
+    /// </summary>
+    private void AbandonQueuedEvents()
+    {
+        while (_eventChannel.Reader.TryRead(out var evt))
+        {
+            switch (evt)
+            {
+                case LoopWorkRequested { Abandon: { } abandon }:
+                    abandon();
+                    break;
+
+                case InlineCommitRequested commit:
+                    commit.Completion.TrySetCanceled();
+                    commit.Registration.Dispose();
+                    commit.Cancellation.Dispose();
+                    break;
+            }
+        }
     }
 
     private void ProcessInlineCommit(InlineCommitRequested request)
@@ -1290,7 +1341,23 @@ public sealed class TerminaApplication : IInlineOutput
         _renderFrameProvider.Dispose();
     }
 
-    private sealed record LoopWorkRequested(Action Action);
+    /// <param name="Action">The work to run on the loop.</param>
+    /// <param name="Abandon">Settles the caller's task when the loop stops before the work runs.</param>
+    private sealed record LoopWorkRequested(Action Action, Action? Abandon = null);
+
+    /// <summary>
+    /// The redraw event that <see cref="RequestRedraw"/> queues. The loop tells it apart from a
+    /// <see cref="RedrawRequested"/> that an input source writes, because only this event can be
+    /// skipped when the redraw flag is clear.
+    /// </summary>
+    private sealed class ApplicationRedrawRequested
+    {
+        public static readonly ApplicationRedrawRequested Instance = new();
+
+        private ApplicationRedrawRequested()
+        {
+        }
+    }
 
     private sealed record InlineCommitRequested(
         ILayoutNode Content,

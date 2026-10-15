@@ -159,6 +159,22 @@ public class EventLoopBatchingTests
         Assert.Equal(2, page.Probe.Renders);
     }
 
+    [Fact]
+    public async Task InvokeAsync_after_the_loop_stopped_is_canceled_and_does_not_run()
+    {
+        var (app, _) = CreateApp();
+        app.AddInputSource(new IdleInputSource());
+        app.Post(app.Shutdown);
+        await Task.Run(() => app.RunAsync()).WaitAsync(TimeSpan.FromSeconds(30));
+
+        // No loop reads the queue now. The task must not wait for a loop that will not run again.
+        var ran = false;
+        var invoked = app.InvokeAsync(() => ran = true);
+
+        Assert.True(invoked.IsCanceled, $"InvokeAsync task is {invoked.Status}.");
+        Assert.False(ran);
+    }
+
     private static (TerminaApplication App, BatchPage Page) CreateApp()
     {
         var app = new TerminaApplication(new VirtualTerminal(80, 24));
