@@ -19,9 +19,21 @@ public sealed class TextAreaNode : TextInputBaseNode
     private int _scrollTopLine;
     private int _lastKnownWidth;
     private List<WrappedLine>? _wrappedLines;
+    // The width that _wrappedLines was built for. Measure and Render set _lastKnownWidth before
+    // they ask for the wrap, so the cache cannot use _lastKnownWidth as its key.
+    private int _wrappedLinesWidth;
+    // A second entry. Measure and Render can ask for different widths in one frame (for example
+    // WidthAuto in a Vertical layout). With one entry, each frame wraps a long line twice.
+    private List<WrappedLine>? _otherWrappedLines;
+    private int _otherWrappedLinesWidth;
     private ConsoleModifiers _newlineModifier = ConsoleModifiers.Control;
     private int _maxLines;
     private bool _wordWrap = true;
+
+    // Measure runs on every frame, and a parent can measure a node more than once in a frame.
+    // A column count walks the whole line, so keep it until the text changes.
+    private ColumnCountCache _prefixColumns;
+    private ColumnCountCache _textColumns;
 
     internal record struct WrappedLine(int TextStartIndex, int Length, int ColumnCount);
 
@@ -295,8 +307,8 @@ public sealed class TextAreaNode : TextInputBaseNode
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
-        var prefixWidth = DisplayWidth.GetColumnCount(CommittedDisplayPrefix);
-        var width = WidthConstraint.Compute(available.Width, prefixWidth + DisplayWidth.GetColumnCount(_text) + 1, available.Width);
+        var prefixWidth = _prefixColumns.Get(CommittedDisplayPrefix);
+        var width = WidthConstraint.Compute(available.Width, prefixWidth + _textColumns.Get(_text) + 1, available.Width);
         _lastKnownWidth = width;
 
         var lines = GetWrappedLines(width);
@@ -498,6 +510,7 @@ public sealed class TextAreaNode : TextInputBaseNode
     private void InvalidateWrappedLines()
     {
         _wrappedLines = null;
+        _otherWrappedLines = null;
     }
 
     private List<WrappedLine> GetWrappedLines(int width)
@@ -505,10 +518,20 @@ public sealed class TextAreaNode : TextInputBaseNode
         if (width <= 0)
             width = 1;
 
-        if (_wrappedLines is not null && _lastKnownWidth == width)
+        if (_wrappedLines is not null && _wrappedLinesWidth == width)
             return _wrappedLines;
 
+        if (_otherWrappedLines is not null && _otherWrappedLinesWidth == width)
+        {
+            (_wrappedLines, _otherWrappedLines) = (_otherWrappedLines, _wrappedLines);
+            (_wrappedLinesWidth, _otherWrappedLinesWidth) = (_otherWrappedLinesWidth, _wrappedLinesWidth);
+            return _wrappedLines;
+        }
+
         _lastKnownWidth = width;
+        _otherWrappedLines = _wrappedLines;
+        _otherWrappedLinesWidth = _wrappedLinesWidth;
+        _wrappedLinesWidth = width;
         _wrappedLines = ComputeWrappedLines(width);
         return _wrappedLines;
     }
