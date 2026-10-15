@@ -423,6 +423,11 @@ public sealed class TerminaApplication : IInlineOutput
     /// <summary>
     /// Request graceful shutdown of the application.
     /// </summary>
+    /// <remarks>
+    /// The loop stops at once. It does not run work that is still in the queue, also work that
+    /// <see cref="Post"/> or <see cref="InvokeAsync"/> queued before this call. A task that
+    /// <see cref="InvokeAsync"/> returned for such work ends as canceled.
+    /// </remarks>
     public void Shutdown()
     {
         _shutdownCts?.Cancel();
@@ -431,6 +436,11 @@ public sealed class TerminaApplication : IInlineOutput
     /// <summary>
     /// Request a UI redraw. Used by ViewModels when async content changes.
     /// </summary>
+    /// <remarks>
+    /// Change the state before you call this method. The loop can merge this request with a redraw
+    /// request that is already in the queue. A render that runs between a call that comes first and
+    /// the state change can draw the old state, and the loop then skips the merged request.
+    /// </remarks>
     public void RequestRedraw()
     {
         // Set the flag before the event is queued, so the loop always sees the flag when it reads the event.
@@ -480,6 +490,11 @@ public sealed class TerminaApplication : IInlineOutput
     /// <summary>
     /// Enqueues work to run on the Termina render loop thread.
     /// </summary>
+    /// <remarks>
+    /// The work does not run when the loop stops first. A stop drops all work that is still in the
+    /// queue, also work that this method queued before a <see cref="Shutdown"/> call. Work that
+    /// this method queues after the loop stopped does not run.
+    /// </remarks>
     /// <param name="action">The work to run on the loop.</param>
     public void Post(Action action)
     {
@@ -493,6 +508,12 @@ public sealed class TerminaApplication : IInlineOutput
     /// Enqueues work to run on the Termina render loop thread and returns a task that
     /// completes when the work has run.
     /// </summary>
+    /// <remarks>
+    /// The work does not run when the loop stops first. A stop drops all work that is still in the
+    /// queue, also work that was queued before a <see cref="Shutdown"/> call. The returned task then
+    /// ends as canceled (<see cref="TaskCanceledException"/>), even when the token of the caller is
+    /// not canceled.
+    /// </remarks>
     /// <param name="action">The work to run on the loop.</param>
     /// <param name="cancellationToken">Cancels the work if it has not run yet.</param>
     public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
@@ -1053,6 +1074,10 @@ public sealed class TerminaApplication : IInlineOutput
                     commit.Completion.TrySetCanceled();
                     commit.Registration.Dispose();
                     commit.Cancellation.Dispose();
+                    break;
+
+                case NavigationRequested:
+                    Interlocked.Decrement(ref _pendingNavigationRequests);
                     break;
             }
         }
