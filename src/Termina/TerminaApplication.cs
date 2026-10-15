@@ -72,6 +72,10 @@ public sealed class TerminaApplication : IInlineOutput
     private bool _mouseEnabledByApp;
     private bool _wheelScrollEnabledByApp;
     private int _pendingNavigationRequests;
+
+    // 1 when RequestRedraw ran after the start of the last render. A RedrawRequested event that
+    // finds 0 asks for a frame that a later render already drew, so the loop does not render again.
+    private int _redrawPending;
     private TerminalInputCapabilities _inputCapabilities = new(
         TerminalCapabilityAvailability.Unknown,
         TerminalInputCapabilitySource.None);
@@ -424,6 +428,9 @@ public sealed class TerminaApplication : IInlineOutput
     /// </summary>
     public void RequestRedraw()
     {
+        // Set the flag before the event is queued, so the loop always sees the flag when it reads the event.
+        Volatile.Write(ref _redrawPending, 1);
+
         // Push a redraw event to the event channel - this will trigger re-render
         _eventChannel.Writer.TryWrite(RedrawRequested.Instance);
     }
@@ -690,10 +697,13 @@ public sealed class TerminaApplication : IInlineOutput
                     RenderCurrentPage();
                 TerminaTrace.Render.Debug(this, "Initial render complete");
 
-                // Single-threaded event loop - all input sources merge here
-                await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))
+                // Single-threaded event loop - all input sources merge here.
+                // WaitToReadAsync observes the token for each batch. ReadAllAsync does not
+                // observe it while the queue is not empty, so a steady producer kept the loop
+                // alive after Shutdown.
+                while (await _eventChannel.Reader.WaitToReadAsync(linkedToken))
                 {
-                    ProcessEventAndMaybeRender(evt);
+                    ProcessQueuedEvents(linkedToken);
                 }
             }
             catch (OperationCanceledException)
@@ -938,22 +948,63 @@ public sealed class TerminaApplication : IInlineOutput
         }
     }
 
-    private void ProcessEventAndMaybeRender(object evt)
+    /// <summary>
+    /// Processes, in order, the events that are in the queue now, and then renders the page once.
+    /// </summary>
+    /// <remarks>
+    /// A render draws the whole page, so one render after a batch shows the same final state as one
+    /// render after each event. When a render takes longer than events arrive (for example a very
+    /// long line in a text area, with the cursor blink and redraw requests), a render after each
+    /// event makes the queue grow without limit, and work posted to the loop, such as a shutdown,
+    /// never runs. The batch holds only the events that were queued when it started. Events that
+    /// arrive during the batch go to the next batch, so a steady producer cannot postpone the render.
+    /// </remarks>
+    internal void ProcessQueuedEvents(CancellationToken cancellationToken)
     {
+        var reader = _eventChannel.Reader;
+        var remaining = Math.Max(1, reader.Count);
+        var renderNeeded = false;
+
+        // Stop at a shutdown request: the events after it must not run on a closing application.
+        while (remaining-- > 0
+               && !cancellationToken.IsCancellationRequested
+               && reader.TryRead(out var evt))
+        {
+            renderNeeded = ProcessQueuedEvent(evt, renderNeeded);
+        }
+
+        // Render after a shutdown request too, so the last frame shows every processed event.
+        RenderIfNeeded(renderNeeded);
+    }
+
+    private void ProcessEventAndMaybeRender(object evt) =>
+        RenderIfNeeded(ProcessQueuedEvent(evt, renderNeeded: false));
+
+    /// <summary>
+    /// Processes one event and returns whether the page needs a render after it.
+    /// </summary>
+    private bool ProcessQueuedEvent(object evt, bool renderNeeded)
+    {
+        // An inline commit renders the page itself.
         if (evt is InlineCommitRequested inlineCommit)
         {
             ProcessInlineCommit(inlineCommit);
-            return;
+            return renderNeeded;
         }
 
         ProcessEvent(evt);
 
-        // If this event enqueued a navigation, do not render the page that is
-        // one event-loop turn away from being replaced.
-        if (HasPendingNavigationRequests())
-            return;
+        return renderNeeded
+            || evt is not RedrawRequested
+            || Volatile.Read(ref _redrawPending) != 0;
+    }
 
-        RenderCurrentPage();
+    private void RenderIfNeeded(bool renderNeeded)
+    {
+        // If an event enqueued a navigation, do not render the page that is
+        // one event-loop turn away from being replaced.
+        if (renderNeeded && !HasPendingNavigationRequests())
+            RenderCurrentPage();
     }
 
     private void ProcessInlineCommit(InlineCommitRequested request)
@@ -1136,6 +1187,10 @@ public sealed class TerminaApplication : IInlineOutput
     /// </remarks>
     private void RenderCurrentPage()
     {
+        // This render draws every change that was requested before this point. Clear the flag
+        // first, so that a request during the render still causes one more render.
+        Interlocked.Exchange(ref _redrawPending, 0);
+
         var layoutRoot = GetCurrentLayoutRoot() ?? new TextNode("No page active");
         if (_toastOverlay != null)
         {
