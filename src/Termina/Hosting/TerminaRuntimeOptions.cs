@@ -108,6 +108,11 @@ public enum KittyKeyboardMode
     ReportAllKeysPlusDisambiguate = 9,
 
     /// <summary>
+    /// Flags 16 | 8 | 1: report associated text and all keys, and disambiguate escape codes.
+    /// </summary>
+    ReportAllKeysWithAssociatedText = 25,
+
+    /// <summary>
     /// Flags 8 | 2 | 1: report all keys, event types, and disambiguate escape codes.
     /// </summary>
     ReportAllKeysWithEventTypes = 11,

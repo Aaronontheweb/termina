@@ -262,6 +262,7 @@ public class EscapeSequenceParserKittyTests
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
         Assert.Equal(ConsoleKey.A, press.KeyInfo.Key);
+        Assert.Equal('A', press.KeyInfo.KeyChar);
         Assert.True((press.KeyInfo.Modifiers & ConsoleModifiers.Shift) != 0);
     }
 
