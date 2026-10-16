@@ -52,6 +52,13 @@
   - Termina routes wheel input to the measured scroll region under the pointer.
   - `ScrollableContainerNode` now implements the current `IScrollable` contract.
 
+- **Added an optional panel background surface** ([#379](https://github.com/Aaronontheweb/termina/pull/379), fixes [#378](https://github.com/Aaronontheweb/termina/issues/378))
+  - `PanelNode.WithBackground(Color)` sets the surface. `PanelNode.Background` reads it.
+  - The panel fills its complete bounds, including the border cells.
+  - A child that resets its colors returns to the surface. A child that selects its own background keeps it.
+  - A scrollable or streaming node in a surface panel keeps its screen bounds, so the mouse wheel reaches it.
+  - A panel without a background keeps its current behavior.
+
 **Performance**
 
 - **The event loop renders once for each batch of queued events** ([#400](https://github.com/Aaronontheweb/termina/pull/400))
@@ -70,8 +77,18 @@
   - An app with a 1,000,000-character line now exits in about 360 ms. Before, it did not exit within 90 s.
 - **Wrapping a very long line is now linear in its length** ([#398](https://github.com/Aaronontheweb/termina/pull/398), fixes [#397](https://github.com/Aaronontheweb/termina/issues/397), first shipped in 0.16.4)
   - `StyledWordWrapper`, `WordWrapper`, and `TextAreaNode` no longer re-measure the rest of a long line for every wrapped row.
+- **Text writes to the diffing terminal allocate less** ([#379](https://github.com/Aaronontheweb/termina/pull/379))
+  - `DiffingTerminal.Write` skips the grapheme parse when every char is printable ASCII. All other text uses the old loop.
+  - A full-screen frame of a panel with a background allocates 40 KB instead of 400 KB. It renders in about 0.7 ms instead of 1.5 ms.
+  - This change applies to every app and every render, not only panels. The output is the same.
 
 **Bug Fixes**
+
+- **Fixed tail follow after a large content update** ([#383](https://github.com/Aaronontheweb/termina/pull/383))
+  - A `ScrollableContainerNode` with `TailWhenAtBottom` stopped at the old offset after the content grew by more than 2 rows. This happens often now, because the loop renders once for each batch of events.
+  - `Measure` now reads `IsNearBottom` before it replaces the content height.
+  - When the content shrinks, `Measure` clamps the offset to the new range. Before, a shrink could leave a blank pane.
+  - A user who scrolled up stays where the user is.
 
 - **Restored all terminal and input state after a render failure**
   - Termina now cancels input tasks before it propagates a render exception.
@@ -94,13 +111,12 @@
 - Current enum values and public signatures keep their behavior. The release adds no public API change that breaks a caller, apart from the event loop behavior changes above.
 - The current `AnsiTerminal(bool)` constructor keeps its behavior.
 - An API approval test prevents accidental contract changes.
-- **The analyzers and source generators now need Roslyn 5.9 or newer.** They reference `Microsoft.CodeAnalysis` 5.9.0 ([#387](https://github.com/Aaronontheweb/termina/pull/387)). Termina 0.16.4 referenced 5.3.0. A compiler that is older than 5.9 cannot load them. Build your project with .NET SDK 10.0.400 or newer.
 
 **Maintenance**
 
 - Bumped `Microsoft.SourceLink.GitHub` to 10.0.303 ([#396](https://github.com/Aaronontheweb/termina/pull/396)) and pinned `System.Security.Cryptography.Pkcs` to 10.0.13 in the test project ([#399](https://github.com/Aaronontheweb/termina/pull/399)) to clear security advisory warnings.
 - Updated `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Hosting` to 10.0.11 ([#380](https://github.com/Aaronontheweb/termina/pull/380), [#389](https://github.com/Aaronontheweb/termina/pull/389)).
-- Updated `Microsoft.CodeAnalysis.CSharp` and `Microsoft.CodeAnalysis.Analyzers` to 5.9.0, the version that the analyzers and source generators build against ([#387](https://github.com/Aaronontheweb/termina/pull/387)).
+- Updated `Microsoft.CodeAnalysis.CSharp` and `Microsoft.CodeAnalysis.Analyzers` to 5.9.0 for the repository ([#387](https://github.com/Aaronontheweb/termina/pull/387)). The source generators and analyzers that ship in the package stay on 5.3.0, as in 0.16.4 ([#403](https://github.com/Aaronontheweb/termina/pull/403)). Consumers keep the same .NET SDK requirement.
 - Updated the `incrementalist.cmd` tool to 1.2.2 ([#385](https://github.com/Aaronontheweb/termina/pull/385)).</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>

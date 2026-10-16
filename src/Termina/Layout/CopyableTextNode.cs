@@ -416,8 +416,9 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
             }
             else
             {
+                // Reset instead of selecting Color.Default, so a surface behind this node stays.
+                context.ResetColors();
                 context.SetForeground(Foreground);
-                context.SetBackground(Color.Default);
             }
 
             context.WriteAt(column, row, cell.Text);

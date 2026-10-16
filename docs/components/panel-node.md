@@ -52,6 +52,43 @@ new PanelNode()
     .WithContent(content)
 ```
 
+## Background Surface
+
+`WithBackground` gives the panel a background color. The panel fills its complete bounds with
+the color. This includes the border cells, the padding, and the content area.
+
+```csharp
+var surface = Color.FromRgb(23, 27, 34);
+
+new PanelNode()
+    .WithBorder(BorderStyle.None)
+    .WithBackground(surface)
+    .WithPadding(1)
+    .WithContent(content)
+```
+
+The surface follows these rules:
+
+- A child that calls `ResetColors` returns to the surface, not to the terminal default.
+- A child that selects its own background keeps that background. The surface resumes after the child resets its colors.
+- A nested panel with a background shows its own surface. The outer surface resumes after the nested panel.
+- The surface does not reach the next sibling of the panel.
+- A scrollable or streaming child in the panel still receives the mouse wheel when the pointer is over it.
+- A panel without a background does not change the terminal background.
+
+A border-less panel with a background marks a region without border glyphs. The glyphs of a
+border become part of a native terminal text selection. A region without them gives a clean copy.
+
+`WithBackground` sets a property. It does not request a redraw. The render reads the value at
+render time. Change the value before the next frame, or build a new panel in a reactive layout.
+
+::: tip
+Use an indexed color (`Color.FromIndex`) if the app must run on a terminal without 24-bit color.
+Termina does not reduce an RGB color for a terminal with less color. A wrong surface color covers the
+complete panel, so it is more visible than a wrong text color. See
+[Colors](../styling/colors.md#terminal-compatibility).
+:::
+
 ## Content Types
 
 Panel content can be any layout node or plain text:
@@ -108,6 +145,7 @@ new PanelNode()
 | `Title` | `string?` | `null` | Title in top border |
 | `Border` | `BorderStyle` | `Single` | Border style |
 | `BorderColor` | `Color?` | `null` | Border color |
+| `Background` | `Color?` | `null` | Background color for the complete panel |
 | `TitleColor` | `Color?` | `null` | Title color |
 | `Padding` | `int` | `0` | Inner padding |
 
@@ -118,6 +156,7 @@ new PanelNode()
 | `.WithTitle(string)` | Set the panel title |
 | `.WithBorder(BorderStyle)` | Set border style |
 | `.WithBorderColor(Color)` | Set border color |
+| `.WithBackground(Color)` | Set the background color for the complete panel |
 | `.WithTitleColor(Color)` | Set title color |
 | `.WithContent(ILayoutNode)` | Set content node |
 | `.WithContent(string)` | Set text content |
