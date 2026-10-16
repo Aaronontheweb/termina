@@ -28,9 +28,14 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
 
+  <!-- Keep the shipped generator on the lowest Roslyn version it needs. A consumer loads the
+       generator with the Roslyn of its own SDK, so a newer reference raises the SDK floor
+       (5.9.0 needs .NET SDK 10.0.400 or newer; 5.3.0 does not). Tests and benchmarks stay on the
+       central version in Directory.Packages.props. Raise this only when the generator needs a
+       newer Roslyn API. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" VersionOverride="5.3.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.3.0" PrivateAssets="all" />
   </ItemGroup>
 
   <!-- Package the generator DLL into the analyzers folder for NuGet consumers -->
