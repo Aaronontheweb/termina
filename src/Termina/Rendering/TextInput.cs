@@ -66,7 +66,7 @@ public sealed class TextInput : IRenderable, IDisposable
         {
             _text = value ?? string.Empty;
             // Keep cursor within valid range
-            _cursorPosition = Math.Min(_cursorPosition, _text.Length);
+            _cursorPosition = DisplayWidth.ClampToTextElementBoundary(_text, _cursorPosition);
         }
     }
 
@@ -100,7 +100,7 @@ public sealed class TextInput : IRenderable, IDisposable
     public int CursorPosition
     {
         get => _cursorPosition;
-        set => _cursorPosition = Math.Max(0, Math.Min(value, _text.Length));
+        set => _cursorPosition = DisplayWidth.ClampToTextElementBoundary(_text, value);
     }
 
     /// <summary>
@@ -183,8 +183,9 @@ public sealed class TextInput : IRenderable, IDisposable
             case ConsoleKey.Backspace:
                 if (_cursorPosition > 0)
                 {
-                    _text = _text.Remove(_cursorPosition - 1, 1);
-                    _cursorPosition--;
+                    var removeStart = DisplayWidth.GetPreviousTextElementIndex(_text, _cursorPosition);
+                    _text = _text.Remove(removeStart, _cursorPosition - removeStart);
+                    _cursorPosition = removeStart;
                     MarkDirty();
                 }
                 return true;
@@ -192,7 +193,8 @@ public sealed class TextInput : IRenderable, IDisposable
             case ConsoleKey.Delete:
                 if (_cursorPosition < _text.Length)
                 {
-                    _text = _text.Remove(_cursorPosition, 1);
+                    var removeEnd = DisplayWidth.GetNextTextElementIndex(_text, _cursorPosition);
+                    _text = _text.Remove(_cursorPosition, removeEnd - _cursorPosition);
                     MarkDirty();
                 }
                 return true;
@@ -200,7 +202,7 @@ public sealed class TextInput : IRenderable, IDisposable
             case ConsoleKey.LeftArrow:
                 if (_cursorPosition > 0)
                 {
-                    _cursorPosition--;
+                    _cursorPosition = DisplayWidth.GetPreviousTextElementIndex(_text, _cursorPosition);
                     MarkDirty();
                 }
                 return true;
@@ -208,7 +210,7 @@ public sealed class TextInput : IRenderable, IDisposable
             case ConsoleKey.RightArrow:
                 if (_cursorPosition < _text.Length)
                 {
-                    _cursorPosition++;
+                    _cursorPosition = DisplayWidth.GetNextTextElementIndex(_text, _cursorPosition);
                     MarkDirty();
                 }
                 return true;
@@ -225,7 +227,7 @@ public sealed class TextInput : IRenderable, IDisposable
 
             default:
                 // Insert printable character
-                if (key.KeyChar >= 32 && key.KeyChar < 127)
+                if (key.KeyChar != '\0' && !char.IsControl(key.KeyChar))
                 {
                     _text = _text.Insert(_cursorPosition, key.KeyChar.ToString());
                     _cursorPosition++;
@@ -258,7 +260,7 @@ public sealed class TextInput : IRenderable, IDisposable
             context.SetBackground(Background);
             var labelText = _label + ": ";
             context.WriteAt(0, 0, labelText);
-            labelWidth = labelText.Length;
+            labelWidth = DisplayWidth.GetColumnCount(labelText);
         }
 
         // Calculate available width for the text field
@@ -275,8 +277,8 @@ public sealed class TextInput : IRenderable, IDisposable
                 // Show placeholder
                 context.SetForeground(PlaceholderForeground);
                 context.SetBackground(Background);
-                var placeholderText = _placeholder.Length > availableWidth
-                    ? _placeholder[..availableWidth]
+                var placeholderText = DisplayWidth.GetColumnCount(_placeholder) > availableWidth
+                    ? DisplayWidth.TruncateToColumns(_placeholder, availableWidth)
                     : _placeholder;
                 context.WriteAt(labelWidth, 0, placeholderText);
             }
@@ -298,37 +300,40 @@ public sealed class TextInput : IRenderable, IDisposable
             {
                 // Render text with cursor
                 var beforeCursor = _text[.._cursorPosition];
-                var atCursor = _cursorPosition < _text.Length ? _text[_cursorPosition] : ' ';
-                var afterCursor = _cursorPosition < _text.Length ? _text[(_cursorPosition + 1)..] : "";
+                var atCursor = _cursorPosition < _text.Length ? DisplayWidth.GetTextElementAt(_text, _cursorPosition) : " ";
+                var afterCursorStart = _cursorPosition < _text.Length ? _cursorPosition + atCursor.Length : _cursorPosition;
+                var afterCursor = afterCursorStart < _text.Length ? _text[afterCursorStart..] : "";
 
                 var x = labelWidth;
 
-                // Truncate if needed
-                if (beforeCursor.Length + 1 + afterCursor.Length > availableWidth)
+                // Truncate if needed using display column counts
+                var beforeColCount = DisplayWidth.GetColumnCount(beforeCursor);
+                var cursorColCount = DisplayWidth.GetColumnCount(atCursor);
+                var afterColCount = DisplayWidth.GetColumnCount(afterCursor);
+
+                if (beforeColCount + cursorColCount > availableWidth)
                 {
-                    // Simple truncation - show as much as fits ending at cursor
-                    var totalLen = beforeCursor.Length + 1 + afterCursor.Length;
-                    if (totalLen > availableWidth)
-                    {
-                        var showBefore = Math.Min(beforeCursor.Length, availableWidth - 1);
-                        beforeCursor = beforeCursor[(beforeCursor.Length - showBefore)..];
-                        var remaining = availableWidth - showBefore - 1;
-                        afterCursor = afterCursor.Length > remaining ? afterCursor[..remaining] : afterCursor;
-                    }
+                    beforeCursor = DisplayWidth.TruncateStartToColumns(beforeCursor, Math.Max(0, availableWidth - cursorColCount));
+                    beforeColCount = DisplayWidth.GetColumnCount(beforeCursor);
                 }
+
+                // Truncate afterCursor if it won't fit
+                var remainingAfterCursor = availableWidth - beforeColCount - cursorColCount;
+                if (afterColCount > remainingAfterCursor)
+                    afterCursor = DisplayWidth.TruncateToColumns(afterCursor, remainingAfterCursor);
 
                 // Write before cursor
                 if (beforeCursor.Length > 0)
                 {
                     context.WriteAt(x, 0, beforeCursor);
-                    x += beforeCursor.Length;
+                    x += beforeColCount;
                 }
 
                 // Write cursor (inverted)
                 context.SetForeground(Background);
                 context.SetBackground(Foreground == Color.Default ? Color.White : Foreground);
                 context.WriteAt(x, 0, atCursor);
-                x++;
+                x += cursorColCount;
 
                 // Write after cursor
                 if (afterCursor.Length > 0)
@@ -341,7 +346,9 @@ public sealed class TextInput : IRenderable, IDisposable
             else
             {
                 // Just render text without cursor
-                var displayText = _text.Length > availableWidth ? _text[..availableWidth] : _text;
+                var displayText = DisplayWidth.GetColumnCount(_text) > availableWidth
+                    ? DisplayWidth.TruncateToColumns(_text, availableWidth)
+                    : _text;
                 context.WriteAt(labelWidth, 0, displayText);
             }
         }
@@ -352,8 +359,8 @@ public sealed class TextInput : IRenderable, IDisposable
     /// <inheritdoc />
     public (int Width, int Height) Measure(int availableWidth, int availableHeight)
     {
-        var labelWidth = string.IsNullOrEmpty(_label) ? 0 : _label.Length + 2; // "label: "
-        var textWidth = string.IsNullOrEmpty(_text) ? 1 : _text.Length; // At least 1 for cursor
+        var labelWidth = string.IsNullOrEmpty(_label) ? 0 : DisplayWidth.GetColumnCount(_label + ": ");
+        var textWidth = string.IsNullOrEmpty(_text) ? 1 : DisplayWidth.GetColumnCount(_text); // At least 1 for cursor
         var totalWidth = labelWidth + textWidth + 1; // +1 for cursor space
 
         return (Math.Min(totalWidth, availableWidth), Math.Min(1, availableHeight));

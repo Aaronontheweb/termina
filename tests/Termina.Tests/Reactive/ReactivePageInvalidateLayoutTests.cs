@@ -391,6 +391,33 @@ public class ReactivePageInvalidateLayoutTests
         Assert.Equal(string.Empty, secondInput.Text);
     }
 
+    [Fact]
+    public void ChildInvalidation_ReplacedFocusedNode_ClearsManualFocusBeforeDisposal()
+    {
+        using var focusManager = new FocusManager();
+
+        var page = new KeyedInputPage();
+        page.BindForTest(new EmptyViewModel());
+        page.WireFocusForTest(focusManager);
+        page.OnNavigatedTo();
+        page.MeasureLayout();
+
+        var firstInput = page.CurrentInput;
+        focusManager.SetFocus(firstInput);
+
+        page.ChangeKey(1);
+        var secondInput = page.CurrentInput;
+        Assert.NotSame(firstInput, secondInput);
+        Assert.Null(focusManager.CurrentFocus);
+
+        page.MeasureLayout();
+        var handled = focusManager.RouteInput(new ConsoleKeyInfo('x', (ConsoleKey)0, false, false, false));
+
+        Assert.False(handled);
+        Assert.Equal(string.Empty, firstInput.Text);
+        Assert.Equal(string.Empty, secondInput.Text);
+    }
+
     private sealed class CountingPage : ReactivePage<EmptyViewModel>
     {
         public int BuildLayoutCallCount { get; private set; }
@@ -518,6 +545,33 @@ public class ReactivePageInvalidateLayoutTests
         public void BindForTest(EmptyViewModel vm) => Bind(vm);
         public void CallInvalidateLayout() => InvalidateLayout();
         public void WireFocusForTest(IFocusManager focusManager) => ((Pages.IBindablePage)this).WireUpFocus(focusManager);
+    }
+
+    private sealed class KeyedInputPage : ReactivePage<EmptyViewModel>
+    {
+        private KeyedDynamicLayoutNode<int> _layout = null!;
+        private int _currentKey;
+
+        public TextInputNode CurrentInput { get; private set; } = null!;
+
+        public override ILayoutNode BuildLayout()
+        {
+            _layout = new KeyedDynamicLayoutNode<int>(
+                () => _currentKey,
+                _ => CurrentInput = new TextInputNode(),
+                KeyedDynamicCachePolicy.EvictOnKeyChange);
+            return _layout;
+        }
+
+        public void BindForTest(EmptyViewModel vm) => Bind(vm);
+        public void WireFocusForTest(IFocusManager focusManager) => ((Pages.IBindablePage)this).WireUpFocus(focusManager);
+        public void MeasureLayout() => _layout.Measure(new Size(80, 24));
+
+        public void ChangeKey(int key)
+        {
+            _currentKey = key;
+            _layout.Invalidate();
+        }
     }
 
     private sealed class TestInvalidatingNode : LayoutNode, IInvalidatingNode

@@ -1,5 +1,19 @@
 # Termina Development Guidelines
 
+## Communication Style
+
+Write all communication to the user in ASD Simplified Technical English (ASD-STE100).
+
+- Use short sentences. Keep one idea in each sentence.
+- Use the active voice.
+- Start each instruction with the verb. Give one command in each step.
+- Use the same word for the same thing. Do not use synonyms.
+- Use simple verb tenses. Do not use gerunds as the subject of a sentence.
+- Use articles such as "the" and "a".
+- Write a list when you give more than one step or condition.
+
+This rule applies to chat replies, code review notes, and commit messages.
+
 ## Architectural Principles
 
 ### Reactive-Only Pattern (R3)
@@ -110,6 +124,20 @@ tableNode.SetCell(0, 1, new TextNode().WithContent(cell));
 
 This principle ensures all text-accepting components (TextNode, table cells, status bars, etc.) can display rich, multi-styled content without requiring specialized node types.
 
+### Terminal Display Width
+
+Termina renders to terminal cells, not UTF-16 characters. Any code that measures, clips, wraps, pads, scrolls, or positions text must use `DisplayWidth` instead of `string.Length`.
+
+- Use `DisplayWidth.GetColumnCount` for visual width
+- Use `DisplayWidth.EnumerateCells` when rendering text element by text element
+- Use `DisplayWidth.SliceByColumns`, `TruncateToColumns`, or `TruncateStartToColumns` for clipping and truncation
+- Use `DisplayWidth.CursorPositionToColumn` when converting source cursor indexes to screen columns
+- Use `DisplayWidth.GetTextElementAt` when drawing the glyph under a cursor
+- Do NOT use `Substring`, range slicing, `PadLeft`, `PadRight`, or `string.Length` for visual layout unless you have already converted the operation into display columns
+- ANSI styling must be terminal state or cell metadata; do not write raw ANSI escape sequences into diff buffers as printable text
+
+`string.Length` is still valid for source-text operations such as clipboard slicing, selection ranges, persisted values, and non-visual bounds checks. See `docs/concepts/unicode-terminal-width.md` for the full scope and non-goals.
+
 ## Testing Guidelines
 
 ### Deterministic Testing with FakeTimeProvider
@@ -146,6 +174,51 @@ public void AnimationChangesFrame()
     Thread.Sleep(50);  // NO - non-deterministic, flaky
 }
 ```
+
+### Analyzer Rule Tests
+
+**Test each analyzer rule with two `TheoryData` buckets, in the Akka.Analyzers style.** Group the cases into a happy path and a sad path. Drive each bucket with one `[Theory]` runner. Use `TerminaVerifier<TAnalyzer>`.
+
+- `SuccessCases` — the happy path. Put correct code that must produce no diagnostic here.
+- `FailureCases` — the sad path. Put code that must produce the diagnostic here.
+- Mark the expected location with `{|#0:...|}` markup. Do NOT use manual line and column numbers. Match the markup with `.WithLocation(0)`.
+- Pass the message arguments as tuple values in `FailureCases`. Use `TheoryData<string, ...>`.
+- Add the shared framework type stubs as the first source of every case.
+- Write a short comment above each case that states its purpose.
+
+**Structure:**
+```csharp
+public sealed class MyAnalyzerTests
+{
+    private const string TerminaFrameworkSource = """ /* type stubs */ """;
+
+    public static readonly TheoryData<string> SuccessCases = new()
+    {
+        // correct code that must not warn
+        """ using Termina.Layout; /* ... */ """,
+    };
+
+    public static readonly TheoryData<string, string> FailureCases = new()
+    {
+        // code that must warn, plus the expected message argument
+        { """ using Termina.Layout; /* ... */ _node?.{|#0:Invalidate|}(); """, "_node" },
+    };
+
+    [Theory]
+    [MemberData(nameof(SuccessCases))]
+    public Task SuccessCase(string testCode)
+        => Verify.VerifyAnalyzer([TerminaFrameworkSource, testCode]);
+
+    [Theory]
+    [MemberData(nameof(FailureCases))]
+    public Task FailureCase(string testCode, string argument)
+        => Verify.VerifyAnalyzer(
+            [TerminaFrameworkSource, testCode],
+            Verify.Diagnostic(MyAnalyzer.DiagnosticId).WithLocation(0).WithArguments(argument));
+}
+```
+
+`StatefulLayoutNodeRecreationAnalyzerTests` is the reference example.
 
 ## Git Workflow
 

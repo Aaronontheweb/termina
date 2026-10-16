@@ -88,8 +88,8 @@ public sealed class TextInputNode : TextInputBaseNode
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
-        var prefixWidth = CommittedDisplayPrefix.Length;
-        var width = WidthConstraint.Compute(available.Width, prefixWidth + _text.Length + 1, available.Width);
+        var prefixWidth = DisplayWidth.GetColumnCount(CommittedDisplayPrefix);
+        var width = WidthConstraint.Compute(available.Width, prefixWidth + DisplayWidth.GetColumnCount(_text) + 1, available.Width);
         return new Size(width, 1);
     }
 
@@ -109,7 +109,7 @@ public sealed class TextInputNode : TextInputBaseNode
         }
 
         var prefix = CommittedDisplayPrefix;
-        var prefixWidth = prefix.Length;
+        var prefixWidth = DisplayWidth.GetColumnCount(prefix);
         var activeText = _text;
 
         if (IsPassword && activeText.Length > 0)
@@ -118,15 +118,15 @@ public sealed class TextInputNode : TextInputBaseNode
         }
 
         var fullDisplayText = prefix + activeText;
-        var displayCursor = prefixWidth + _cursorPosition;
+        var displayCursor = prefixWidth + DisplayWidth.CursorPositionToColumn(activeText, _cursorPosition);
 
         if (fullDisplayText.Length == 0 && !string.IsNullOrEmpty(Placeholder))
         {
             inputContext.SetForeground(PlaceholderColor);
             if (Background.HasValue)
                 inputContext.SetBackground(Background.Value);
-            var placeholder = Placeholder.Length > bounds.Width
-                ? Placeholder[..bounds.Width]
+            var placeholder = DisplayWidth.GetColumnCount(Placeholder) > bounds.Width
+                ? DisplayWidth.TruncateToColumns(Placeholder, bounds.Width)
                 : Placeholder;
             inputContext.WriteAt(0, 0, placeholder);
             inputContext.ResetColors();
@@ -140,24 +140,26 @@ public sealed class TextInputNode : TextInputBaseNode
             return;
         }
 
+        var cursorTextWidth = DisplayWidth.GetColumnCount(DisplayWidth.GetTextElementAt(activeText, _cursorPosition));
+
         if (displayCursor < _scrollOffset)
         {
             _scrollOffset = displayCursor;
         }
-        else if (displayCursor >= _scrollOffset + bounds.Width)
+        else if (displayCursor + cursorTextWidth > _scrollOffset + bounds.Width)
         {
-            _scrollOffset = displayCursor - bounds.Width + 1;
+            _scrollOffset = displayCursor + cursorTextWidth - bounds.Width;
         }
 
         var visStart = _scrollOffset;
-        var visEnd = Math.Min(fullDisplayText.Length, _scrollOffset + bounds.Width);
+        var visEnd = _scrollOffset + bounds.Width;
 
-        var segOffset = 0;
-        var x = 0;
+        var segColumnOffset = 0;
         foreach (var seg in _committedSegments)
         {
-            var segStart = segOffset;
-            var segEnd = segOffset + seg.DisplayText.Length;
+            var segStart = segColumnOffset;
+            var segWidth = DisplayWidth.GetColumnCount(seg.DisplayText);
+            var segEnd = segStart + segWidth;
 
             var drawStart = Math.Max(segStart, visStart);
             var drawEnd = Math.Min(segEnd, visEnd);
@@ -174,16 +176,14 @@ public sealed class TextInputNode : TextInputBaseNode
                 if (Background.HasValue)
                     inputContext.SetBackground(Background.Value);
 
-                var text = seg.DisplayText[(drawStart - segStart)..(drawEnd - segStart)];
-                inputContext.WriteAt(drawStart - _scrollOffset, 0, text);
-                x = drawEnd - _scrollOffset;
+                WriteVisibleText(inputContext, seg.DisplayText, segStart, _scrollOffset, drawStart, drawEnd);
             }
 
-            segOffset = segEnd;
+            segColumnOffset = segEnd;
         }
 
         var activeStart = prefixWidth;
-        var activeEnd = prefixWidth + activeText.Length;
+        var activeEnd = prefixWidth + DisplayWidth.GetColumnCount(activeText);
         var activeDrawStart = Math.Max(activeStart, visStart);
         var activeDrawEnd = Math.Min(activeEnd, visEnd);
 
@@ -199,10 +199,22 @@ public sealed class TextInputNode : TextInputBaseNode
             {
                 var selStart = Math.Min(_selectionStart, _cursorPosition) + prefixWidth;
                 var selEnd = Math.Max(_selectionStart, _cursorPosition) + prefixWidth;
+                var activeColumn = activeStart;
 
-                for (var i = activeDrawStart; i < activeDrawEnd; i++)
+                foreach (var cell in DisplayWidth.EnumerateCells(activeText))
                 {
-                    if (i >= selStart && i < selEnd)
+                    var cellStart = activeColumn;
+                    var cellEnd = cellStart + cell.ColumnWidth;
+                    activeColumn = cellEnd;
+
+                    if (cellEnd <= activeDrawStart || cellStart >= activeDrawEnd)
+                        continue;
+
+                    if (cellStart < activeDrawStart || cellEnd > activeDrawEnd)
+                        continue;
+
+                    var textIndex = cell.StartIndex;
+                    if (textIndex >= selStart - prefixWidth && textIndex < selEnd - prefixWidth)
                     {
                         inputContext.SetBackground(SelectionColor);
                     }
@@ -216,13 +228,12 @@ public sealed class TextInputNode : TextInputBaseNode
                             inputContext.SetForeground(Foreground.Value);
                     }
 
-                    inputContext.WriteAt(i - _scrollOffset, 0, fullDisplayText[i]);
+                    inputContext.WriteAt(cellStart - _scrollOffset, 0, cell.Text);
                 }
             }
             else
             {
-                var text = activeText[(activeDrawStart - activeStart)..(activeDrawEnd - activeStart)];
-                inputContext.WriteAt(activeDrawStart - _scrollOffset, 0, text);
+                WriteVisibleText(inputContext, activeText, activeStart, _scrollOffset, activeDrawStart, activeDrawEnd);
             }
         }
 
@@ -235,10 +246,10 @@ public sealed class TextInputNode : TextInputBaseNode
             {
                 inputContext.SetBackground(CursorColor);
                 inputContext.SetForeground(Background ?? Color.Black);
-                var cursorChar = cursorX < fullDisplayText.Length - _scrollOffset
-                    ? fullDisplayText[cursorX + _scrollOffset]
-                    : ' ';
-                inputContext.WriteAt(cursorX, 0, cursorChar);
+                var cursorText = _cursorPosition < activeText.Length
+                    ? DisplayWidth.GetTextElementAt(activeText, _cursorPosition)
+                    : " ";
+                inputContext.WriteAt(cursorX, 0, cursorText);
                 inputContext.ResetColors();
             }
         }
@@ -249,6 +260,35 @@ public sealed class TextInputNode : TextInputBaseNode
     /// </summary>
     protected override void OnTextBufferChanged()
     {
-        // No-op for single-line — _scrollOffset is adjusted during Render
+        if (_text.Length == 0 || _cursorPosition == 0)
+        {
+            _scrollOffset = 0;
+        }
+        base.OnTextBufferChanged();
+    }
+
+    private static void WriteVisibleText(
+        IRenderContext context,
+        string text,
+        int absoluteStartColumn,
+        int scrollOffset,
+        int drawStart,
+        int drawEnd)
+    {
+        var column = absoluteStartColumn;
+        foreach (var cell in DisplayWidth.EnumerateCells(text))
+        {
+            var cellStart = column;
+            var cellEnd = cellStart + cell.ColumnWidth;
+            column = cellEnd;
+
+            if (cellEnd <= drawStart || cellStart >= drawEnd)
+                continue;
+
+            if (cellStart < drawStart || cellEnd > drawEnd)
+                continue;
+
+            context.WriteAt(cellStart - scrollOffset, 0, cell.Text);
+        }
     }
 }

@@ -33,13 +33,14 @@ public enum AutoScrollPolicy
 /// A layout node that provides vertical scrolling for content that exceeds the viewport.
 /// Manages scroll position state internally.
 /// </summary>
-public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
+public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, IScrollable, IPointerScrollable
 {
     private ILayoutNode _content = new EmptyNode();
     private int _scrollOffset;
     private int _contentHeight;
     private int _viewportHeight;
     private int _previousContentHeight;
+    private ScreenBounds _lastRenderedBounds = ScreenBounds.Empty;
     private readonly Subject<Unit> _invalidated = new();
     private IDisposable? _contentSubscription;
 
@@ -96,14 +97,19 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     /// </summary>
     public bool IsNearBottom => _scrollOffset >= MaxScroll - 2;
 
+    ScreenBounds IPointerScrollable.LastRenderedBounds => _lastRenderedBounds;
+
     /// <summary>
     /// Set the content to scroll.
     /// </summary>
     public ScrollableContainerNode WithContent(ILayoutNode content)
     {
-        // Dispose previous subscription and content
+        // Dispose the previous content's subscription, and deactivate the previous
+        // content (active/inactive pattern) rather than dispose it. Content is
+        // disposed only at teardown, in Dispose().
         _contentSubscription?.Dispose();
-        _content.Dispose();
+        if (_content is IActivatableNode oldContent)
+            oldContent.OnDeactivate();
         _content = content;
 
         // If content is invalidating, subscribe to the observable
@@ -166,6 +172,10 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
             _invalidated.OnNext(Unit.Default);
         }
     }
+
+    void IScrollable.ScrollDown(int lines) => ScrollTo(_scrollOffset + Math.Max(0, lines));
+
+    void IScrollable.ScrollUp(int lines) => ScrollTo(_scrollOffset - Math.Max(0, lines));
 
     /// <summary>
     /// Scroll down by a page.
@@ -291,6 +301,10 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     /// <inheritdoc />
     public override void Render(IRenderContext context, Rect bounds)
     {
+        _lastRenderedBounds = context is IScreenPositionedRenderContext positioned
+            ? positioned.GetScreenBounds(bounds)
+            : ScreenBounds.Empty;
+
         if (!bounds.HasArea)
             return;
 
@@ -367,7 +381,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     /// <summary>
     /// A render context that applies vertical scroll offset.
     /// </summary>
-    private sealed class ScrolledRenderContext : IRenderContext
+    private sealed class ScrolledRenderContext : IRenderContext, IScreenPositionedRenderContext
     {
         private readonly IRenderContext _parent;
         private readonly int _offsetX;
@@ -391,24 +405,24 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
             var actualY = y + _offsetY;
             if (actualY < 0 || actualY >= _parent.Height)
                 return;
+            text = DisplayWidth.SanitizeTerminalText(text);
+            var skipColumns = 0;
             if (x < 0)
             {
-                text = text[Math.Min(-x, text.Length)..];
+                skipColumns = -x;
                 x = 0;
             }
             if (x >= Width)
                 return;
-            if (x + text.Length > Width)
-                text = text[..(Width - x)];
+            text = DisplayWidth.SliceByColumns(text, skipColumns, Width - x);
+            if (string.IsNullOrEmpty(text))
+                return;
             _parent.WriteAt(x + _offsetX, actualY, text);
         }
 
         public void WriteAt(int x, int y, char c)
         {
-            var actualY = y + _offsetY;
-            if (x < 0 || x >= Width || actualY < 0 || actualY >= _parent.Height)
-                return;
-            _parent.WriteAt(x + _offsetX, actualY, c);
+            WriteAt(x, y, c.ToString());
         }
 
         public void SetForeground(Color color) => _parent.SetForeground(color);
@@ -449,6 +463,26 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
                 _offsetY + clippedY,
                 clippedWidth,
                 clippedHeight);
+        }
+
+        ScreenBounds IScreenPositionedRenderContext.GetScreenBounds(Rect bounds)
+        {
+            var clippedX = Math.Max(0, bounds.X);
+            var clippedY = Math.Max(0, bounds.Y);
+            var clippedRight = Math.Min(Width, bounds.Right);
+            var clippedBottom = Math.Min(_clipHeight, bounds.Bottom);
+
+            if (clippedRight <= clippedX || clippedBottom <= clippedY
+                || _parent is not IScreenPositionedRenderContext positioned)
+            {
+                return ScreenBounds.Empty;
+            }
+
+            return positioned.GetScreenBounds(new Rect(
+                _offsetX + clippedX,
+                _offsetY + clippedY,
+                clippedRight - clippedX,
+                clippedBottom - clippedY));
         }
     }
 }

@@ -10,9 +10,13 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>
-    </VersionPrefix>
-    <PackageReleaseNotes>0.14.0 June 23rd 2026</PackageReleaseNotes>
+    <VersionPrefix>0.17.0-beta.5</VersionPrefix>
+    <PackageReleaseNotes>**Bug Fixes**
+
+- **Corrected text-area prompt history traversal** ([#368](https://github.com/Aaronontheweb/termina/issues/368))
+  - Up recalls prompt history from the first visual line and saves the current draft.
+  - Down restores the saved draft from the last visual line.
+  - Up and Down keep their current visual movement between multiline rows.</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->

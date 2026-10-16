@@ -10,4 +10,10 @@ namespace Termina.Platform;
 /// True when the console is delivering raw bytes to the parser rather than relying on
 /// <see cref="Console.ReadKey(bool)"/> or other cooked input handling.
 /// </param>
-public readonly record struct TerminalCapabilities(bool RawInputActive);
+public readonly record struct TerminalCapabilities(bool RawInputActive)
+{
+    /// <summary>
+    /// Gets whether the platform input path preserves key modifiers without a terminal protocol.
+    /// </summary>
+    public bool PreservesKeyModifiers { get; init; }
+}

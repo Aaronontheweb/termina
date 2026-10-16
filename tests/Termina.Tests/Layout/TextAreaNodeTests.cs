@@ -403,7 +403,7 @@ public class TextAreaNodeTests : IDisposable
 
     #endregion
 
-    #region Up/Down History (when empty)
+    #region Up/Down History
 
     [Fact]
     public void UpArrow_WhenEmpty_NoHistory_ReturnsFalse()
@@ -445,6 +445,37 @@ public class TextAreaNodeTests : IDisposable
         // Down arrow with empty text and history enabled — should consume the key
         var handled = node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false));
         Assert.True(handled);
+    }
+
+    [Fact]
+    public void UpArrow_AtTop_WithHistory_RecallsEntryAndSavesDraft()
+    {
+        using var node = new TextAreaNode().WithHistory();
+
+        TypeText(node, "previous entry");
+        Submit(node);
+        node.Clear();
+        TypeText(node, "saved draft");
+
+        PressUpArrow(node);
+
+        Assert.Equal("previous entry", node.Text);
+    }
+
+    [Fact]
+    public void DownArrow_AtBottom_AfterHistoryRecall_RestoresDraft()
+    {
+        using var node = new TextAreaNode().WithHistory();
+
+        TypeText(node, "previous entry");
+        Submit(node);
+        node.Clear();
+        TypeText(node, "saved draft");
+        PressUpArrow(node);
+
+        PressDownArrow(node);
+
+        Assert.Equal("saved draft", node.Text);
     }
 
     #endregion
@@ -847,6 +878,115 @@ public class TextAreaNodeTests : IDisposable
         // Cursor overwrites first char at position 0, so check for "ype here..."
         var row0 = context.GetContent(0);
         Assert.Contains("ype here...", row0);
+    }
+
+    #endregion
+
+    #region Cursor Placement
+
+    [Fact]
+    public void TextSetter_KeepsCursorPosition()
+    {
+        _node.Text = "abc";
+        TypeText("x");
+
+        Assert.Equal("xabc", _node.Text);
+    }
+
+    [Fact]
+    public void MoveCursorToEnd_AfterSeedingText_AppendsTypedCharacter()
+    {
+        _node.Text = "seed";
+        _node.MoveCursorToEnd();
+
+        TypeText("x");
+
+        Assert.Equal("seedx", _node.Text);
+    }
+
+    [Fact]
+    public void CursorPosition_MultiLineText_InsertsOnRequestedLine()
+    {
+        TypeText("ab");
+        InsertNewline();
+        TypeText("cd");
+
+        _node.CursorPosition = 4;
+        TypeText("X");
+        Assert.Equal("ab\ncXd", _node.Text);
+
+        _node.MoveCursorToEnd();
+        TypeText("Z");
+        Assert.Equal("ab\ncXdZ", _node.Text);
+    }
+
+    [Fact]
+    public void CursorPosition_InsideTextElement_MovesToElementStart()
+    {
+        _node.Text = "a\U0001F44D\U0001F3FDb";
+
+        _node.CursorPosition = 3;
+
+        Assert.Equal(1, _node.CursorPosition);
+    }
+
+    [Fact]
+    public void CursorPosition_ClearsSelectionAndDoesNotEmitTextChanged()
+    {
+        TypeText("abcd");
+        _node.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, true));
+        Assert.True(_node.HasSelection);
+        var changeCount = 0;
+        _node.TextChanged.Subscribe(_ => changeCount++);
+
+        _node.CursorPosition = 1;
+
+        Assert.False(_node.HasSelection);
+        Assert.Equal(0, changeCount);
+    }
+
+    [Fact]
+    public void CursorPosition_EmitsInvalidated()
+    {
+        _node.Text = "abcd";
+        var invalidations = 0;
+        _node.Invalidated.Subscribe(_ => invalidations++);
+
+        _node.MoveCursorToEnd();
+
+        Assert.Equal(1, invalidations);
+    }
+
+    [Fact]
+    public void CursorPosition_IndexesEditableTextAfterPastedSegment()
+    {
+        _node.Text = "line1\nline2";
+        Assert.StartsWith("[Pasted", _node.Text);
+
+        _node.CursorPosition = 50;
+        Assert.Equal(0, _node.CursorPosition);
+
+        _node.MoveCursorToEnd();
+        TypeText("x");
+
+        Assert.EndsWith("x", _node.Text);
+    }
+
+    [Fact]
+    public void Render_AfterMoveCursorToEnd_ShowsLastLineWithCursor()
+    {
+        // 25 characters wrap to rows of 10, 10 and 5 columns. A two-row viewport must show the last two rows.
+        var terminal = new VirtualTerminal(10, 2);
+        var context = new RegionRenderContext(terminal, 0, 0, 10, 2);
+        _node.Text = "abcdefghijklmnopqrstuvwxy";
+        _node.MoveCursorToEnd();
+
+        _node.Measure(new Size(10, 2));
+        _node.Render(context, new Rect(0, 0, 10, 2));
+
+        Assert.Equal("klmnopqrst", terminal.GetLine(0));
+        Assert.Equal("uvwxy", terminal.GetLine(1).TrimEnd());
+        Assert.Equal(_node.CursorColor, terminal.GetBackground(5, 1));
     }
 
     #endregion

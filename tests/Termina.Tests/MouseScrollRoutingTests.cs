@@ -3,6 +3,7 @@
 
 using Termina.Input;
 using Termina.Layout;
+using Termina.Reactive;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -131,5 +132,126 @@ public class MouseScrollRoutingTests
     {
         var evt = new MouseScrollEvent(-1);
         Assert.True(evt.Delta < 0);
+    }
+
+    [Fact]
+    public void MouseScrollEvent_RoutesToScrollableUnderPointer()
+    {
+        var (app, top, bottom) = CreateScrollApplication();
+        try
+        {
+            var topOffset = top.ScrollOffset;
+            var bottomOffset = bottom.ScrollOffset;
+
+            InvokeProcessEvent(app, new MouseScrollEvent(+1) { X = 2, Y = 2 });
+
+            Assert.Equal(topOffset - 3, top.ScrollOffset);
+            Assert.Equal(bottomOffset, bottom.ScrollOffset);
+        }
+        finally
+        {
+            app.Dispose();
+        }
+    }
+
+    [Fact]
+    public void LegacyMouseScroll_RoutesToScrollableUnderPointer()
+    {
+        var (app, top, bottom) = CreateScrollApplication();
+        try
+        {
+            var topOffset = top.ScrollOffset;
+            var bottomOffset = bottom.ScrollOffset;
+
+            InvokeProcessEvent(app, new MouseEvent(
+                X: 2,
+                Y: 7,
+                MouseButton.WheelUp,
+                MouseEventType.Scroll));
+
+            Assert.Equal(topOffset, top.ScrollOffset);
+            Assert.Equal(bottomOffset - 3, bottom.ScrollOffset);
+        }
+        finally
+        {
+            app.Dispose();
+        }
+    }
+
+    [Fact]
+    public void ScrollableContainer_UsesMeasuredViewportThroughIScrollable()
+    {
+        var (app, top, _) = CreateScrollApplication();
+        try
+        {
+            var offset = top.ScrollOffset;
+
+            ((IScrollable)top).ScrollUp(4);
+
+            Assert.Equal(offset - 4, top.ScrollOffset);
+        }
+        finally
+        {
+            app.Dispose();
+        }
+    }
+
+    private static (TerminaApplication App, ScrollableContainerNode Top, ScrollableContainerNode Bottom)
+        CreateScrollApplication()
+    {
+        var top = CreateScrollable("Top");
+        var bottom = CreateScrollable("Bottom");
+        ScrollPage.Root = Layouts.Vertical()
+            .WithChild(top.Height(5))
+            .WithChild(bottom.Height(5));
+
+        var app = new TerminaApplication(new VirtualTerminal(20, 10), new TestServiceProvider());
+        app.RegisterRoute<ScrollPage, ScrollViewModel>("/scroll");
+        app.NavigateTo("/scroll");
+        InvokeRenderCurrentPage(app);
+        return (app, top, bottom);
+    }
+
+    private static ScrollableContainerNode CreateScrollable(string prefix) =>
+        new ScrollableContainerNode()
+            .WithContent(new TextNode(string.Join('\n',
+                Enumerable.Range(0, 20).Select(index => $"{prefix} {index}"))));
+
+    private static void InvokeProcessEvent(TerminaApplication app, object evt)
+    {
+        var method = typeof(TerminaApplication).GetMethod(
+            "ProcessEvent",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        Assert.NotNull(method);
+        method!.Invoke(app, [evt]);
+    }
+
+    private static void InvokeRenderCurrentPage(TerminaApplication app)
+    {
+        var method = typeof(TerminaApplication).GetMethod(
+            "RenderCurrentPage",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        Assert.NotNull(method);
+        method!.Invoke(app, []);
+    }
+
+    private sealed class TestServiceProvider : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => serviceType == typeof(IEnumerable<IInputSource>)
+            ? Array.Empty<IInputSource>()
+            : null;
+    }
+
+    private sealed class ScrollPage : ReactivePage<ScrollViewModel>
+    {
+        public static ILayoutNode Root { get; set; } = new EmptyNode();
+
+        public override ILayoutNode BuildLayout() => Root;
+    }
+
+    private sealed class ScrollViewModel : ReactiveViewModel
+    {
     }
 }

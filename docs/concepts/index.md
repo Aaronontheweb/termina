@@ -91,4 +91,6 @@ Page (capture) → Focused Component (bubble) → ViewModel
 - [Routing](/concepts/routing) - ASP.NET-style route templates
 - [Navigation](/concepts/navigation) - Moving between pages
 - [Input Handling](/concepts/input-handling) - Keyboard, mouse, and resize
+- [Unicode Terminal Width](/concepts/unicode-terminal-width) - Terminal-cell measurement for CJK, emoji, and combining text
+- [Presentation Modes](/concepts/presentation-modes) - Full-screen and primary-buffer application ownership
 - [Hosting & DI](/concepts/hosting) - Integration with Microsoft.Extensions

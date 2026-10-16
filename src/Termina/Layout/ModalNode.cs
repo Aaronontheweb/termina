@@ -361,7 +361,7 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
         if (!string.IsNullOrEmpty(_title))
         {
             var maxTitleLen = bounds.Width - 4;
-            var displayTitle = _title.Length > maxTitleLen ? _title[..maxTitleLen] : _title;
+            var displayTitle = DisplayWidth.GetColumnCount(_title) > maxTitleLen ? DisplayWidth.TruncateToColumns(_title, maxTitleLen) : _title;
             var titleText = $" {displayTitle} ";
             var titleX = 2;
 
@@ -377,7 +377,7 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
         if (!string.IsNullOrEmpty(_footer))
         {
             var maxFooterLen = bounds.Width - 4;
-            var displayFooter = _footer.Length > maxFooterLen ? _footer[..maxFooterLen] : _footer;
+            var displayFooter = DisplayWidth.GetColumnCount(_footer) > maxFooterLen ? DisplayWidth.TruncateToColumns(_footer, maxFooterLen) : _footer;
             var footerText = $" {displayFooter} ";
             var footerX = 2;
 

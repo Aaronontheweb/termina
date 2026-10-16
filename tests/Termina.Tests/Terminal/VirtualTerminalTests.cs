@@ -40,6 +40,30 @@ public class VirtualTerminalTests
     }
 
     [Fact]
+    public void Write_Emoji_PreservesWholeTextElementInLines()
+    {
+        var terminal = new VirtualTerminal(10, 2);
+
+        terminal.Write("😀A");
+
+        Assert.Equal("😀A", terminal.GetLine(0));
+        Assert.True(terminal.Contains("😀"));
+        Assert.Equal('A', terminal.GetChar(2, 0));
+    }
+
+    [Fact]
+    public void Write_CombiningSequence_PreservesWholeTextElementInLines()
+    {
+        var terminal = new VirtualTerminal(10, 2);
+
+        terminal.Write("e\u0301A");
+
+        Assert.Equal("e\u0301A", terminal.GetLine(0));
+        Assert.True(terminal.Contains("e\u0301"));
+        Assert.Equal('A', terminal.GetChar(1, 0));
+    }
+
+    [Fact]
     public void Write_Char_WritesToBufferAtCursorPosition()
     {
         var terminal = new VirtualTerminal();

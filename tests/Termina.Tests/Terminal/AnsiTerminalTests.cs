@@ -16,6 +16,24 @@ namespace Termina.Tests.Terminal;
 public class AnsiTerminalTests
 {
     [Fact]
+    public void Inline_controls_emit_relative_cursor_sequences()
+    {
+        var output = new StringWriter();
+        using var terminal = new AnsiTerminal(output, useAlternateScreen: false);
+
+        terminal.MoveCursorUp(2);
+        terminal.MoveCursorDown(3);
+        terminal.MoveCursorToLineStart();
+        terminal.EraseLine();
+        terminal.WriteLineBreak();
+        terminal.Flush();
+
+        Assert.Contains(AnsiCodes.MoveUp(2), output.ToString());
+        Assert.Contains(AnsiCodes.MoveDown(3), output.ToString());
+        Assert.Contains($"\r{AnsiCodes.ClearLine}\r\n", output.ToString());
+    }
+
+    [Fact]
     public void Flush_writes_to_current_ConsoleOut_not_a_stale_reference()
     {
         // Regression test for #204: AnsiTerminal used to capture Console.Out at

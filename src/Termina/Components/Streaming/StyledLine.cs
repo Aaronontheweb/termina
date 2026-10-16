@@ -88,6 +88,11 @@ public sealed class StyledLine
     public int Length => _length;
 
     /// <summary>
+    /// Total terminal display columns occupied by the line.
+    /// </summary>
+    public int ColumnCount => _segments.Sum(segment => DisplayWidth.GetColumnCount(segment.Text));
+
+    /// <summary>
     /// Returns true if the line has no content.
     /// </summary>
     public bool IsEmpty => _length == 0;
@@ -225,6 +230,62 @@ public sealed class StyledLine
             return new StyledLine();
 
         return Substring(startIndex, _length - startIndex);
+    }
+
+    /// <summary>
+    /// Extracts a column-based slice while preserving styling across segment boundaries.
+    /// </summary>
+    public StyledLine SliceByColumns(int startColumn, int maxColumns)
+    {
+        if (startColumn < 0)
+            throw new ArgumentOutOfRangeException(nameof(startColumn), "Start column cannot be negative.");
+        if (maxColumns < 0)
+            throw new ArgumentOutOfRangeException(nameof(maxColumns), "Column length cannot be negative.");
+        if (maxColumns == 0)
+            return new StyledLine();
+
+        var result = new StyledLine();
+        var currentColumn = 0;
+        var taken = 0;
+
+        foreach (var segment in _segments)
+        {
+            var segmentColumns = DisplayWidth.GetColumnCount(segment.Text);
+            if (currentColumn + segmentColumns <= startColumn)
+            {
+                currentColumn += segmentColumns;
+                continue;
+            }
+
+            var localStart = Math.Max(0, startColumn - currentColumn);
+            var remainingBudget = maxColumns - taken;
+
+            // Take the whole tail of this segment from localStart, then compare it to the budget.
+            // This tells us whether the budget ends inside this segment or the segment ends first.
+            var fullTail = DisplayWidth.SliceByColumns(segment.Text, localStart, int.MaxValue);
+            var fullTailColumns = DisplayWidth.GetColumnCount(fullTail);
+            var budgetEndsInsideSegment = fullTailColumns > remainingBudget;
+
+            var localText = budgetEndsInsideSegment
+                ? DisplayWidth.SliceByColumns(segment.Text, localStart, remainingBudget)
+                : fullTail;
+
+            if (localText.Length > 0)
+            {
+                result.AppendInternal(new StyledSegment(localText, segment.Style));
+                taken += DisplayWidth.GetColumnCount(localText);
+            }
+
+            // Stop when the budget ends inside this segment. A wide glyph that straddles the budget
+            // boundary is skipped, so the slice is shorter than the budget. The slice must be a
+            // contiguous column range, so no later segment can join it.
+            if (budgetEndsInsideSegment || taken >= maxColumns)
+                break;
+
+            currentColumn += segmentColumns;
+        }
+
+        return result;
     }
 
     /// <summary>

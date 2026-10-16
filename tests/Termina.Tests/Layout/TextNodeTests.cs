@@ -116,6 +116,31 @@ public class TextNodeTests
     }
 
     [Fact]
+    public void Render_WithWordWrap_WrapsCjkByDisplayColumns()
+    {
+        var terminal = new VirtualTerminal(80, 24);
+        var context = new RegionRenderContext(terminal, 0, 0, 80, 24);
+        var node = new TextNode("你好世界");
+
+        node.Render(context, new Rect(0, 0, 4, 10));
+
+        Assert.Equal("你好", terminal.GetLine(0));
+        Assert.Equal("世界", terminal.GetLine(1));
+    }
+
+    [Fact]
+    public void Render_WithoutWordWrap_TruncatesCjkByDisplayColumns()
+    {
+        var terminal = new VirtualTerminal(80, 24);
+        var context = new RegionRenderContext(terminal, 0, 0, 80, 24);
+        var node = new TextNode("你好世界").NoWrap();
+
+        node.Render(context, new Rect(0, 0, 5, 1));
+
+        Assert.Equal("你好", terminal.GetLine(0));
+    }
+
+    [Fact]
     public void Render_RespectsHeightBounds()
     {
         var terminal = new VirtualTerminal(80, 24);

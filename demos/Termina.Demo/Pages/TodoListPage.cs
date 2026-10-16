@@ -148,7 +148,7 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
                             .AsLayout())
                     .Fill())
             .WithChild(
-                new TextNode("[↑/↓] Navigate [Space] Toggle [A] Add [D] Delete [C] Counter [Q] Quit")
+                new TextNode("[↑/↓] Navigate [Space] Toggle [A] Add [D] Delete [C] Counter [U] Unicode [Q] Quit")
                     .WithForeground(Color.BrightBlack)
                     .Height(1))
             .WithChild(

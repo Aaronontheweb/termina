@@ -23,6 +23,7 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     ];
     private int _cursorPosition;
     private int _selectionStart = -1;
+    private string? _semanticContent;
     private bool _showInlineIndicator;
     private bool _hasFocus;
     private bool _disposed;
@@ -37,6 +38,15 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     }
 
     public string Content { get; private set; }
+
+    /// <summary>
+    /// Gets the complete text used for a full-content copy action.
+    /// </summary>
+    /// <remarks>
+    /// This value defaults to <see cref="Content"/>. A text selection still copies
+    /// the selected display text.
+    /// </remarks>
+    public string SemanticContent => _semanticContent ?? Content;
 
     public string? Hint { get; private set; } = "Press Enter to copy";
 
@@ -86,10 +96,24 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     public CopyableTextNode WithContent(string content)
     {
         Content = content ?? string.Empty;
-        _cursorPosition = Math.Min(_cursorPosition, Content.Length);
+        _cursorPosition = DisplayWidth.ClampToTextElementBoundary(Content, _cursorPosition);
         if (_selectionStart > Content.Length)
             _selectionStart = -1;
         Invalidate();
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the complete text used for a full-content copy action.
+    /// </summary>
+    /// <remarks>
+    /// Use this value when the display text contains decoration, truncation, or
+    /// terminal control data that the clipboard text must omit.
+    /// </remarks>
+    public CopyableTextNode WithSemanticContent(string semanticContent)
+    {
+        ArgumentNullException.ThrowIfNull(semanticContent);
+        _semanticContent = semanticContent;
         return this;
     }
 
@@ -157,7 +181,7 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     public void OnFocused()
     {
         _hasFocus = true;
-        _cursorPosition = Math.Min(_cursorPosition, Content.Length);
+        _cursorPosition = DisplayWidth.ClampToTextElementBoundary(Content, _cursorPosition);
         TerminaTrace.Focus.Debug(this, "CopyableTextNode focused: contentLength={0}", Content.Length);
         Invalidate();
     }
@@ -182,7 +206,7 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         }
         else if (IsCopyBinding(key))
         {
-            CopySelectionOrContent();
+            TryCopy();
             handled = true;
         }
         else
@@ -237,8 +261,10 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
 
         if (_showInlineIndicator && bounds.Width > 0 && lineCount > 0)
         {
-            var inlineText = InlineIndicatorText.Length > bounds.Width ? InlineIndicatorText[..bounds.Width] : InlineIndicatorText;
-            var indicatorX = Math.Max(0, bounds.Width - inlineText.Length);
+            var inlineText = DisplayWidth.GetColumnCount(InlineIndicatorText) > bounds.Width
+                ? DisplayWidth.TruncateToColumns(InlineIndicatorText, bounds.Width)
+                : InlineIndicatorText;
+            var indicatorX = Math.Max(0, bounds.Width - DisplayWidth.GetColumnCount(inlineText));
             nodeContext.SetForeground(InlineIndicatorForeground);
             nodeContext.WriteAt(indicatorX, 0, inlineText);
             nodeContext.ResetColors();
@@ -247,7 +273,9 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         if (hasHint && bounds.Height > lineCount)
         {
             nodeContext.SetForeground(_hasFocus ? Color.BrightBlack : Color.Gray);
-            nodeContext.WriteAt(0, lineCount, Hint!.Length > bounds.Width ? Hint[..bounds.Width] : Hint);
+            nodeContext.WriteAt(0, lineCount, DisplayWidth.GetColumnCount(Hint!) > bounds.Width
+                ? DisplayWidth.TruncateToColumns(Hint!, bounds.Width)
+                : Hint!);
             nodeContext.ResetColors();
         }
     }
@@ -264,13 +292,18 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         base.Dispose();
     }
 
-    private bool CopySelectionOrContent()
+    /// <summary>
+    /// Copies the selected display text, or the complete semantic content when no
+    /// selection exists.
+    /// </summary>
+    /// <returns>True when at least one clipboard transport reported success.</returns>
+    public bool TryCopy()
     {
-        var textToCopy = HasSelection ? SelectedText : Content;
+        var textToCopy = HasSelection ? SelectedText : SemanticContent;
         TerminaTrace.Input.Info(this, "CopyableTextNode copy requested: contentLength={0}, selectionLength={1}", Content.Length, textToCopy.Length);
         var success = _clipboardService.Copy(textToCopy);
         ShowFeedback(success);
-        return true;
+        return success;
     }
 
     private bool IsCopyBinding(ConsoleKeyInfo key)
@@ -315,14 +348,16 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         if (Content.Length == 0)
             return false;
 
-        var newPosition = Math.Clamp(_cursorPosition + delta, 0, Content.Length);
+        var newPosition = delta < 0
+            ? DisplayWidth.GetPreviousTextElementIndex(Content, _cursorPosition)
+            : DisplayWidth.GetNextTextElementIndex(Content, _cursorPosition);
         UpdateSelectionForMove(modifiers, newPosition);
         return true;
     }
 
     private bool MoveToBoundary(int position, ConsoleModifiers modifiers)
     {
-        var newPosition = Math.Clamp(position, 0, Content.Length);
+        var newPosition = DisplayWidth.ClampToTextElementBoundary(Content, position);
         UpdateSelectionForMove(modifiers, newPosition);
         return true;
     }
@@ -359,9 +394,13 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
 
     private void RenderLine(IRenderContext context, int row, RenderedLine line, int width)
     {
-        for (var column = 0; column < line.Text.Length && column < width; column++)
+        var column = 0;
+        foreach (var cell in DisplayWidth.EnumerateCells(line.Text))
         {
-            var sourceIndex = line.StartIndex + column;
+            if (column >= width)
+                break;
+
+            var sourceIndex = line.StartIndex + cell.StartIndex;
             var isSelected = IsSelected(sourceIndex);
             var isCursor = _hasFocus && !HasSelection && sourceIndex == _cursorPosition;
 
@@ -381,14 +420,15 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
                 context.SetBackground(Color.Default);
             }
 
-            context.WriteAt(column, row, line.Text[column]);
+            context.WriteAt(column, row, cell.Text);
+            column += cell.ColumnWidth;
         }
 
-        if (_hasFocus && !HasSelection && line.Text.Length < width && _cursorPosition == line.StartIndex + line.Text.Length)
+        if (_hasFocus && !HasSelection && column < width && _cursorPosition == line.StartIndex + line.Text.Length)
         {
             context.SetForeground(FocusedForeground);
             context.SetBackground(FocusedBackground);
-            context.WriteAt(line.Text.Length, row, ' ');
+            context.WriteAt(column, row, ' ');
         }
 
         context.ResetColors();
@@ -422,10 +462,26 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
             }
             else
             {
-                for (var chunkStart = 0; chunkStart < line.Length; chunkStart += width)
+                var chunkStart = 0;
+                var chunkEnd = 0;
+                var columns = 0;
+
+                foreach (var cell in DisplayWidth.EnumerateCells(line))
                 {
-                    var chunkLength = Math.Min(width, line.Length - chunkStart);
-                    rendered.Add(new RenderedLine(line.Substring(chunkStart, chunkLength), sourceOffset + chunkStart));
+                    if (columns > 0 && columns + cell.ColumnWidth > width)
+                    {
+                        rendered.Add(new RenderedLine(line[chunkStart..chunkEnd], sourceOffset + chunkStart));
+                        chunkStart = cell.StartIndex;
+                        columns = 0;
+                    }
+
+                    chunkEnd = cell.StartIndex + cell.Length;
+                    columns += cell.ColumnWidth;
+                }
+
+                if (chunkEnd > chunkStart)
+                {
+                    rendered.Add(new RenderedLine(line[chunkStart..chunkEnd], sourceOffset + chunkStart));
                 }
             }
 

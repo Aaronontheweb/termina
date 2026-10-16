@@ -9,7 +9,7 @@ namespace Termina.Rendering;
 /// Render context that translates relative coordinates to absolute screen positions.
 /// All rendering is clipped to the region bounds.
 /// </summary>
-public sealed class RegionRenderContext : IRenderContext
+public sealed class RegionRenderContext : IRenderContext, IScreenPositionedRenderContext
 {
     private readonly IAnsiTerminal _terminal;
     private readonly int _offsetX;
@@ -44,17 +44,19 @@ public sealed class RegionRenderContext : IRenderContext
         if (y < 0 || y >= Height || x >= Width)
             return;
 
-        // Clip text to fit within region
+        text = DisplayWidth.SanitizeTerminalText(text);
+
+        // Clip text to fit within region by terminal columns.
         var startX = Math.Max(0, x);
-        var skipChars = startX - x;
+        var skipColumns = startX - x;
         var availableWidth = Width - startX;
 
-        if (skipChars >= text.Length || availableWidth <= 0)
+        if (availableWidth <= 0)
             return;
 
-        var clippedText = text.Substring(skipChars);
-        if (clippedText.Length > availableWidth)
-            clippedText = clippedText.Substring(0, availableWidth);
+        var clippedText = DisplayWidth.SliceByColumns(text, skipColumns, availableWidth);
+        if (string.IsNullOrEmpty(clippedText))
+            return;
 
         _terminal.MoveTo(_offsetX + startX, _offsetY + y);
         _terminal.Write(clippedText);
@@ -63,11 +65,7 @@ public sealed class RegionRenderContext : IRenderContext
     /// <inheritdoc />
     public void WriteAt(int x, int y, char c)
     {
-        if (x < 0 || x >= Width || y < 0 || y >= Height)
-            return;
-
-        _terminal.MoveTo(_offsetX + x, _offsetY + y);
-        _terminal.Write(c);
+        WriteAt(x, y, c.ToString());
     }
 
     /// <inheritdoc />
@@ -91,6 +89,18 @@ public sealed class RegionRenderContext : IRenderContext
     /// <inheritdoc />
     public void SetDecoration(TextDecoration decoration)
     {
+        if (_terminal is DiffingTerminal diffingTerminal)
+        {
+            diffingTerminal.SetDecoration(decoration);
+            return;
+        }
+
+        if (_terminal is InlineTerminal inlineTerminal)
+        {
+            inlineTerminal.SetDecoration(decoration);
+            return;
+        }
+
         // Reset any previous decorations first
         if (decoration == TextDecoration.None)
         {
@@ -135,7 +145,8 @@ public sealed class RegionRenderContext : IRenderContext
             return;
 
         var fillWidth = endX - startX;
-        var fillLine = new string(c, fillWidth);
+        var fillChar = DisplayWidth.GetColumnCount(c) == 1 ? c : ' ';
+        var fillLine = new string(fillChar, fillWidth);
 
         for (var row = startY; row < endY; row++)
         {
@@ -168,5 +179,22 @@ public sealed class RegionRenderContext : IRenderContext
             _offsetY + clippedY,
             clippedWidth,
             clippedHeight);
+    }
+
+    Layout.ScreenBounds IScreenPositionedRenderContext.GetScreenBounds(Layout.Rect bounds)
+    {
+        var clippedX = Math.Max(0, bounds.X);
+        var clippedY = Math.Max(0, bounds.Y);
+        var clippedRight = Math.Min(Width, bounds.Right);
+        var clippedBottom = Math.Min(Height, bounds.Bottom);
+
+        if (clippedRight <= clippedX || clippedBottom <= clippedY)
+            return Layout.ScreenBounds.Empty;
+
+        return new Layout.ScreenBounds(
+            _offsetX + clippedX,
+            _offsetY + clippedY,
+            clippedRight - clippedX,
+            clippedBottom - clippedY);
     }
 }

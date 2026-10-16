@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Termina.Layout;
+using Termina.Input;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -54,5 +55,36 @@ public class TextInputNodeRenderTests
 
         Assert.Equal(Color.Default, terminal.GetBackground(3, 0));
         Assert.Equal(Color.Default, terminal.GetBackground(15, 0));
+    }
+
+    [Fact]
+    public void Render_CjkText_PositionsCursorByDisplayColumns()
+    {
+        using var node = new TextInputNode();
+        node.HandlePaste(new PasteEvent("你好A"));
+
+        var (terminal, context) = NewSurface();
+        node.Render(context, new Rect(0, 0, 6, 1));
+
+        Assert.Equal('你', terminal.GetChar(0, 0));
+        Assert.Equal('好', terminal.GetChar(2, 0));
+        Assert.Equal('A', terminal.GetChar(4, 0));
+        Assert.Equal(node.CursorColor, terminal.GetBackground(5, 0));
+    }
+
+    [Fact]
+    public void Render_CjkCursorAtViewportEdge_RemainsVisible()
+    {
+        using var node = new TextInputNode();
+        node.HandlePaste(new PasteEvent("你好"));
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
+
+        var terminal = new VirtualTerminal(3, 1);
+        var context = new RegionRenderContext(terminal, 0, 0, 3, 1);
+
+        node.Render(context, new Rect(0, 0, 3, 1));
+
+        Assert.Equal(node.CursorColor, terminal.GetBackground(2, 0));
     }
 }

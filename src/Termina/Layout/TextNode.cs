@@ -170,7 +170,7 @@ public sealed class TextNode : LayoutNode
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
-        var maxLineWidth = _lines.Max(l => l.Length);
+        var maxLineWidth = _lines.Max(DisplayWidth.GetColumnCount);
         var width = WidthConstraint.Compute(available.Width, maxLineWidth, available.Width);
 
         // Calculate height based on whether word wrap is enabled
@@ -215,15 +215,16 @@ public sealed class TextNode : LayoutNode
         {
             var line = linesToRender[i];
             // Truncate if still too long (shouldn't happen with wrapping, but safety check)
-            var displayLine = line.Length > bounds.Width
-                ? line[..bounds.Width]
+            var displayLine = DisplayWidth.GetColumnCount(line) > bounds.Width
+                ? DisplayWidth.TruncateToColumns(line, bounds.Width)
                 : line;
+            var displayLineWidth = DisplayWidth.GetColumnCount(displayLine);
 
             // Calculate horizontal offset based on alignment
             var x = Alignment switch
             {
-                TextAlignment.Center => Math.Max(0, (bounds.Width - displayLine.Length) / 2),
-                TextAlignment.Right => Math.Max(0, bounds.Width - displayLine.Length),
+                TextAlignment.Center => Math.Max(0, (bounds.Width - displayLineWidth) / 2),
+                TextAlignment.Right => Math.Max(0, bounds.Width - displayLineWidth),
                 _ => 0 // Left alignment
             };
 
@@ -235,4 +236,3 @@ public sealed class TextNode : LayoutNode
             textContext.ResetColors();
     }
 }
-

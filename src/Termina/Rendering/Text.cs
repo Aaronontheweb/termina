@@ -47,10 +47,10 @@ public sealed class Text : IRenderable
         for (var y = 0; y < lines.Length && y < context.Height; y++)
         {
             var line = lines[y];
-            // Truncate to fit width
-            if (line.Length > context.Width)
+            // Truncate to fit display width
+            if (DisplayWidth.GetColumnCount(line) > context.Width)
             {
-                line = line.Substring(0, context.Width);
+                line = DisplayWidth.TruncateToColumns(line, context.Width);
             }
             context.WriteAt(0, y, line);
         }
@@ -68,8 +68,9 @@ public sealed class Text : IRenderable
         var maxWidth = 0;
         foreach (var line in lines)
         {
-            if (line.Length > maxWidth)
-                maxWidth = line.Length;
+            var colCount = DisplayWidth.GetColumnCount(line);
+            if (colCount > maxWidth)
+                maxWidth = colCount;
         }
 
         return (Math.Min(maxWidth, availableWidth), Math.Min(lines.Length, availableHeight));

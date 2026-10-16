@@ -97,6 +97,41 @@ public class RegionRenderContextTests
     }
 
     [Fact]
+    public void WriteAt_WideCharThatDoesNotFit_DoesNotOverflowRegion()
+    {
+        var terminal = new VirtualTerminal(5, 1);
+        var context = new RegionRenderContext(terminal, 0, 0, 1, 1);
+
+        context.WriteAt(0, 0, '你');
+
+        Assert.Equal(' ', terminal.GetChar(0, 0));
+        Assert.Equal(' ', terminal.GetChar(1, 0));
+    }
+
+    [Fact]
+    public void WriteAt_TextWithNewline_DoesNotMoveOutsideRegionRow()
+    {
+        var terminal = new VirtualTerminal(10, 2);
+        var context = new RegionRenderContext(terminal, 0, 0, 10, 1);
+
+        context.WriteAt(0, 0, "A\nB");
+
+        Assert.Equal("A B", terminal.GetLine(0));
+        Assert.Equal("", terminal.GetLine(1));
+    }
+
+    [Fact]
+    public void WriteAt_TextWithAnsiEscape_DoesNotExecuteOrRenderEscapeFragment()
+    {
+        var terminal = new VirtualTerminal(10, 1);
+        var context = new RegionRenderContext(terminal, 0, 0, 10, 1);
+
+        context.WriteAt(0, 0, "\u001b[1mHi");
+
+        Assert.Equal("Hi", terminal.GetLine(0));
+    }
+
+    [Fact]
     public void Width_ReturnsRegionWidth()
     {
         var terminal = new VirtualTerminal(80, 24);

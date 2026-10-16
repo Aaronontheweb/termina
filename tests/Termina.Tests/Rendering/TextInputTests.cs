@@ -116,6 +116,19 @@ public class TextInputTests
     }
 
     [Fact]
+    public void HandleKey_CjkPrintableChar_InsertsAtCursor()
+    {
+        var input = new TextInput { IsFocused = true };
+        var key = new ConsoleKeyInfo('你', (ConsoleKey)0, false, false, false);
+
+        var handled = input.HandleKey(key);
+
+        Assert.True(handled);
+        Assert.Equal("你", input.Text);
+        Assert.Equal(1, input.CursorPosition);
+    }
+
+    [Fact]
     public void HandleKey_MultipleChars_InsertsInOrder()
     {
         var input = new TextInput { IsFocused = true };
@@ -222,6 +235,30 @@ public class TextInputTests
 
         Assert.True(handled);
         Assert.Equal(3, input.CursorPosition);
+    }
+
+    [Fact]
+    public void HandleKey_RightArrow_SkipsWholeEmojiTextElement()
+    {
+        var input = new TextInput { IsFocused = true, Text = "😀A" };
+        input.CursorPosition = 0;
+
+        input.HandleKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
+        input.HandleKey(new ConsoleKeyInfo('X', (ConsoleKey)0, false, false, false));
+
+        Assert.Equal("😀XA", input.Text);
+    }
+
+    [Fact]
+    public void HandleKey_Backspace_DeletesWholeEmojiTextElement()
+    {
+        var input = new TextInput { IsFocused = true, Text = "😀A" };
+        input.CursorPosition = 2;
+
+        input.HandleKey(new ConsoleKeyInfo('\b', ConsoleKey.Backspace, false, false, false));
+
+        Assert.Equal("A", input.Text);
+        Assert.Equal(0, input.CursorPosition);
     }
 
     [Fact]

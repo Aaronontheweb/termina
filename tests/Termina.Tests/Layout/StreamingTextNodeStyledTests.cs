@@ -124,6 +124,38 @@ public class StreamingTextNodeStyledTests
     }
 
     [Fact]
+    public void Render_WrapsCjkChatTextByDisplayColumns()
+    {
+        var terminal = new VirtualTerminal(80, 24);
+        var context = new RegionRenderContext(terminal, 0, 0, 80, 24);
+        var node = StreamingTextNode.Create();
+
+        node.AppendLine("你是谁");
+
+        node.Render(context, new Rect(0, 0, 4, 3));
+
+        Assert.Equal("你是", terminal.GetLine(0));
+        Assert.Equal("谁", terminal.GetLine(1));
+    }
+
+    [Fact]
+    public void Render_AdvancesStyledSegmentsByDisplayColumns()
+    {
+        var terminal = new VirtualTerminal(80, 24);
+        var context = new RegionRenderContext(terminal, 0, 0, 80, 24);
+        var node = StreamingTextNode.Create();
+
+        node.Append("你", foreground: Color.Red);
+        node.AppendLine("A", foreground: Color.Blue);
+
+        node.Render(context, new Rect(0, 0, 10, 1));
+
+        Assert.Equal('你', terminal.GetChar(0, 0));
+        Assert.Equal('A', terminal.GetChar(2, 0));
+        Assert.Equal(Color.Blue, terminal.GetForeground(2, 0));
+    }
+
+    [Fact]
     public void Render_WithNodeForeground_UsesAsFallback()
     {
         var terminal = new VirtualTerminal(80, 24);

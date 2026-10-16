@@ -32,7 +32,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                             .AsLayout())
                     .Fill())
             .WithChild(
-                new TextNode("[↑] Increment [↓] Decrement [R] Reset [T] Todos [Q] Quit")
+                new TextNode("[↑] Increment [↓] Decrement [R] Reset [T] Todos [U] Unicode [Q] Quit")
                     .WithForeground(Color.BrightBlack)
                     .Height(1))
             .WithChild(

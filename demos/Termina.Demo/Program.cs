@@ -39,6 +39,7 @@ builder.Services.AddTermina("/counter", termina =>
 {
     termina.RegisterRoute<CounterPage, CounterViewModel>("/counter", NavigationBehavior.PreserveState);
     termina.RegisterRoute<TodoListPage, TodoListViewModel>("/todos", NavigationBehavior.PreserveState);
+    termina.RegisterRoute<UnicodePage, CjkDemoViewModel>("/unicode", NavigationBehavior.PreserveState);
 });
 
 var host = builder.Build();

@@ -130,6 +130,10 @@ NavigateWithParams("/items/{id}", new { id = 42 });
 NavigateWithParams("/users/{name}", new { name = "alice" });
 ```
 
+## Going Back
+
+Termina tracks navigation history across route transitions. See [Navigation](/concepts/navigation.html#going-back) for `GoBack()`, `CanGoBack`, and `NavigationBackRequested`.
+
 ## Route Source Code
 
 ::: details View RouteTemplate implementation

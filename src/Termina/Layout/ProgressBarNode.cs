@@ -29,8 +29,8 @@ public sealed class ProgressBarNode : LayoutNode, IInvalidatingNode
     public ProgressBarNode WithValue(double value) { _value = value; _invalidated.OnNext(Unit.Default); return this; }
     public ProgressBarNode WithRange(double min, double max) { _minValue = min; _maxValue = max; return this; }
     public ProgressBarNode WithLabel(string format) { _labelFormat = format; return this; }
-    public ProgressBarNode WithFillChar(char c) { _fillChar = c; return this; }
-    public ProgressBarNode WithEmptyChar(char c) { _emptyChar = c; return this; }
+    public ProgressBarNode WithFillChar(char c) { if (DisplayWidth.GetColumnCount(c) == 1) _fillChar = c; return this; }
+    public ProgressBarNode WithEmptyChar(char c) { if (DisplayWidth.GetColumnCount(c) == 1) _emptyChar = c; return this; }
     public ProgressBarNode WithEmptyColor(Color color) { _emptyColor = color; return this; }
 
     public override Size Measure(Size available)
@@ -56,7 +56,7 @@ public sealed class ProgressBarNode : LayoutNode, IInvalidatingNode
         if (_labelFormat is not null)
         {
             label = string.Format(_labelFormat, normalized);
-            barWidth = Math.Max(1, totalWidth - label.Length - 1);
+            barWidth = Math.Max(1, totalWidth - DisplayWidth.GetColumnCount(label) - 1);
         }
 
         var filledCols = (int)Math.Round(normalized * barWidth);

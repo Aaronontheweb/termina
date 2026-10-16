@@ -95,7 +95,7 @@ public sealed class Panel : IRenderable
         if (!string.IsNullOrEmpty(Title) && width > 4)
         {
             var maxTitleLen = width - 4; // Leave room for borders and spaces
-            var displayTitle = Title.Length > maxTitleLen ? Title[..maxTitleLen] : Title;
+            var displayTitle = DisplayWidth.GetColumnCount(Title) > maxTitleLen ? DisplayWidth.TruncateToColumns(Title, maxTitleLen) : Title;
             var titleX = 2; // After corner and space
             context.WriteAt(titleX, 0, displayTitle);
         }
@@ -200,23 +200,24 @@ public sealed class Panel : IRenderable
         {
             if (y < 0 || y >= Height)
                 return;
+            text = DisplayWidth.SanitizeTerminalText(text);
+            var skipColumns = 0;
             if (x < 0)
             {
-                text = text[Math.Min(-x, text.Length)..];
+                skipColumns = -x;
                 x = 0;
             }
             if (x >= Width)
                 return;
-            if (x + text.Length > Width)
-                text = text[..(Width - x)];
+            text = DisplayWidth.SliceByColumns(text, skipColumns, Width - x);
+            if (string.IsNullOrEmpty(text))
+                return;
             _parent.WriteAt(x + _offsetX, y + _offsetY, text);
         }
 
         public void WriteAt(int x, int y, char c)
         {
-            if (x < 0 || x >= Width || y < 0 || y >= Height)
-                return;
-            _parent.WriteAt(x + _offsetX, y + _offsetY, c);
+            WriteAt(x, y, c.ToString());
         }
 
         public void SetForeground(Color color) => _parent.SetForeground(color);

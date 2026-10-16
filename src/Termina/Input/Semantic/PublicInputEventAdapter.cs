@@ -64,8 +64,8 @@ internal static class PublicInputEventAdapter
         {
             return pointerInput.Button switch
             {
-                MouseButton.WheelUp => [new MouseScrollEvent(+1)],
-                MouseButton.WheelDown => [new MouseScrollEvent(-1)],
+                MouseButton.WheelUp => [CreateMouseScrollEvent(+1, pointerInput)],
+                MouseButton.WheelDown => [CreateMouseScrollEvent(-1, pointerInput)],
                 _ => [],
             };
         }
@@ -77,6 +77,13 @@ internal static class PublicInputEventAdapter
             pointerInput.Action.ToMouseEventType(),
             pointerInput.Modifiers.ToConsoleModifiers())];
     }
+
+    private static MouseScrollEvent CreateMouseScrollEvent(int delta, PointerInput pointerInput) => new(delta)
+    {
+        X = pointerInput.X > 0 ? pointerInput.X - 1 : null,
+        Y = pointerInput.Y > 0 ? pointerInput.Y - 1 : null,
+        Modifiers = pointerInput.Modifiers.ToConsoleModifiers(),
+    };
 
     private static char KeyCharFromAssociatedText(string? text, TerminaKey key) =>
         string.IsNullOrEmpty(text) ? DefaultKeyChar(key) : text[0];

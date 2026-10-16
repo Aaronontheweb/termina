@@ -5,7 +5,7 @@ namespace Termina.Terminal;
 
 /// <summary>
 /// Represents a single cell in the terminal buffer.
-/// Each cell contains a character and its associated styling (colors and decorations).
+/// Each cell contains text and its associated styling (colors and decorations).
 /// </summary>
 /// <remarks>
 /// Used for double-buffering in diff-based rendering to track what's on screen
@@ -14,9 +14,20 @@ namespace Termina.Terminal;
 public readonly record struct TerminalCell : IEquatable<TerminalCell>
 {
     /// <summary>
-    /// The character displayed in this cell.
+    /// The first UTF-16 character displayed in this cell.
     /// </summary>
     public char Character { get; init; }
+
+    /// <summary>
+    /// The complete text element displayed in this cell.
+    /// </summary>
+    public string Text { get; init; }
+
+    /// <summary>
+    /// True when this cell is the trailing half of a wide text element.
+    /// Continuation cells reserve terminal columns but are not emitted directly.
+    /// </summary>
+    public bool IsContinuation { get; init; }
 
     /// <summary>
     /// The foreground (text) color.
@@ -39,9 +50,24 @@ public readonly record struct TerminalCell : IEquatable<TerminalCell>
     public TerminalCell(char character, Color foreground, Color background, TextDecoration decoration)
     {
         Character = character;
+        Text = character.ToString();
         Foreground = foreground;
         Background = background;
         Decoration = decoration;
+        IsContinuation = false;
+    }
+
+    /// <summary>
+    /// Creates a new terminal cell with the specified text element and styling.
+    /// </summary>
+    public TerminalCell(string text, Color foreground, Color background, TextDecoration decoration, bool isContinuation = false)
+    {
+        Text = string.IsNullOrEmpty(text) ? " " : text;
+        Character = Text[0];
+        Foreground = foreground;
+        Background = background;
+        Decoration = decoration;
+        IsContinuation = isContinuation;
     }
 
     /// <summary>
@@ -50,9 +76,11 @@ public readonly record struct TerminalCell : IEquatable<TerminalCell>
     public static TerminalCell Empty => new()
     {
         Character = ' ',
+        Text = " ",
         Foreground = Color.Default,
         Background = Color.Default,
-        Decoration = TextDecoration.None
+        Decoration = TextDecoration.None,
+        IsContinuation = false
     };
 
     /// <summary>
@@ -61,15 +89,30 @@ public readonly record struct TerminalCell : IEquatable<TerminalCell>
     public static TerminalCell FromChar(char c) => new()
     {
         Character = c,
+        Text = c.ToString(),
         Foreground = Color.Default,
         Background = Color.Default,
-        Decoration = TextDecoration.None
+        Decoration = TextDecoration.None,
+        IsContinuation = false
+    };
+
+    /// <summary>
+    /// Creates a continuation cell for the trailing half of a wide text element.
+    /// </summary>
+    public static TerminalCell Continuation(Color foreground, Color background, TextDecoration decoration) => new()
+    {
+        Character = ' ',
+        Text = " ",
+        Foreground = foreground,
+        Background = background,
+        Decoration = decoration,
+        IsContinuation = true
     };
 
     /// <summary>
     /// Returns a new cell with the same styling but a different character.
     /// </summary>
-    public TerminalCell WithCharacter(char c) => this with { Character = c };
+    public TerminalCell WithCharacter(char c) => this with { Character = c, Text = c.ToString(), IsContinuation = false };
 
     /// <summary>
     /// Returns a new cell with the same character but different foreground color.
@@ -97,11 +140,13 @@ public readonly record struct TerminalCell : IEquatable<TerminalCell>
 
     public bool Equals(TerminalCell other) =>
         Character == other.Character &&
+        Text == other.Text &&
+        IsContinuation == other.IsContinuation &&
         Foreground == other.Foreground &&
         Background == other.Background &&
         Decoration == other.Decoration;
 
-    public override int GetHashCode() => HashCode.Combine(Character, Foreground, Background, Decoration);
+    public override int GetHashCode() => HashCode.Combine(Character, Text, IsContinuation, Foreground, Background, Decoration);
 
-    public override string ToString() => $"'{Character}' (FG:{Foreground}, BG:{Background}, Deco:{Decoration})";
+    public override string ToString() => $"'{Text}' (FG:{Foreground}, BG:{Background}, Deco:{Decoration}, Continuation:{IsContinuation})";
 }

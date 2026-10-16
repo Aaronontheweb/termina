@@ -9,6 +9,11 @@ namespace Termina.Hosting;
 public sealed class TerminaRuntimeOptions
 {
     /// <summary>
+    /// Selects how Termina owns the terminal display.
+    /// </summary>
+    public TerminalPresentationMode PresentationMode { get; set; } = TerminalPresentationMode.FullScreen;
+
+    /// <summary>
     /// Prefer raw-byte input over the fallback <see cref="Console.ReadKey(bool)"/> pipeline when available.
     /// This is required for alternate-scroll wheel disambiguation and full kitty keyboard reporting.
     /// </summary>
@@ -48,12 +53,33 @@ public enum ScrollInputMode
     /// <summary>
     /// Use SGR mouse tracking. This is the most compatible default but captures click-drag selection.
     /// </summary>
-    LegacyMouseTracking,
+    LegacyMouseTracking = 0,
 
     /// <summary>
     /// Use xterm alternate-scroll mode. This preserves native terminal selection but requires raw input.
     /// </summary>
-    AlternateScroll,
+    AlternateScroll = 1,
+
+    /// <summary>
+    /// Leave scroll and selection input under native terminal control.
+    /// </summary>
+    NativeTerminal = 2,
+}
+
+/// <summary>
+/// Configures how Termina owns the terminal display.
+/// </summary>
+public enum TerminalPresentationMode
+{
+    /// <summary>
+    /// Use the alternate buffer and own the complete terminal viewport.
+    /// </summary>
+    FullScreen = 0,
+
+    /// <summary>
+    /// Use the primary buffer and own a bounded live region.
+    /// </summary>
+    Inline = 1,
 }
 
 /// <summary>

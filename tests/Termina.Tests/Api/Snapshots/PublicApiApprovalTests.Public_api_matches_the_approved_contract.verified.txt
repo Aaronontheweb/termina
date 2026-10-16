@@ -1,0 +1,2366 @@
+﻿[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/Aaronontheweb/termina")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Termina.Tests")]
+[assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
+namespace Termina.Clipboard
+{
+    public interface IClipboardService
+    {
+        bool Copy(string text);
+    }
+}
+namespace Termina
+{
+    public abstract class Component
+    {
+        protected Component() { }
+        public R3.Observable<R3.Unit> ContentChanged { get; }
+        protected void MarkDirty() { }
+        public abstract Termina.Layout.ILayoutNode Render();
+    }
+    public interface IUIEvent
+    {
+        System.DateTime Timestamp { get; }
+    }
+    public sealed class TerminaApplication : Termina.Terminal.IInlineOutput
+    {
+        public TerminaApplication(Termina.Terminal.IAnsiTerminal terminal) { }
+        public TerminaApplication(Termina.Terminal.IAnsiTerminal terminal, System.IServiceProvider? serviceProvider) { }
+        public TerminaApplication(Termina.Terminal.IAnsiTerminal terminal, Termina.Hosting.TerminaRuntimeOptions? runtimeOptions = null, System.IServiceProvider? serviceProvider = null) { }
+        public bool CanGoBack { get; }
+        public string? CurrentPath { get; }
+        public Termina.Input.IFocusManager Focus { get; }
+        public R3.Observable<Termina.Input.IInputEvent> Input { get; }
+        public Termina.Input.TerminalInputCapabilities InputCapabilities { get; }
+        public R3.FrameProvider RenderFrameProvider { get; }
+        public Termina.TerminaApplication AddInputSource(Termina.Input.IInputSource inputSource) { }
+        public System.Threading.Tasks.ValueTask CommitAsync(Termina.Layout.ILayoutNode content, System.Threading.CancellationToken cancellationToken) { }
+        public void Dispose() { }
+        public void GoBack() { }
+        public System.Threading.Tasks.Task InvokeAsync(System.Action action, System.Threading.CancellationToken cancellationToken = default) { }
+        public void NavigateTo(string path) { }
+        public void NavigateTo(string routeTemplate, object? routeValues) { }
+        public void Post(System.Action action) { }
+        public void RegisterRoute<TPage, TViewModel>(string routeTemplate, Termina.Pages.NavigationBehavior behavior = 0)
+            where TPage : Termina.Reactive.ReactivePage<TViewModel>, new ()
+            where TViewModel : Termina.Reactive.ReactiveViewModel, new () { }
+        public void RequestRedraw() { }
+        public System.Threading.Tasks.Task RunAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.IDisposable SetDefaultObservableSystem() { }
+        public void Shutdown() { }
+    }
+}
+namespace Termina.Components.Streaming
+{
+    public sealed class BlockSegment : System.IDisposable, Termina.Components.Streaming.IAnimatedTextSegment, Termina.Components.Streaming.ITextSegment
+    {
+        public BlockSegment(Termina.Components.Streaming.ITextSegment inner) { }
+        public Termina.Components.Streaming.ITextSegment Inner { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public bool IsAnimating { get; }
+        public void Dispose() { }
+        public Termina.Components.Streaming.StyledSegment GetCurrentSegment() { }
+        public void Start() { }
+        public void Stop() { }
+    }
+    public sealed class CompositeTextSegment : System.IDisposable, Termina.Components.Streaming.IAnimatedTextSegment, Termina.Components.Streaming.ICompositeTextSegment, Termina.Components.Streaming.ITextSegment
+    {
+        public CompositeTextSegment(System.Collections.Generic.IEnumerable<Termina.Components.Streaming.ITextSegment> children) { }
+        public CompositeTextSegment(params Termina.Components.Streaming.ITextSegment[] children) { }
+        public System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.ITextSegment> Children { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public bool IsAnimating { get; }
+        public void Dispose() { }
+        public Termina.Components.Streaming.StyledSegment GetCurrentSegment() { }
+        public void Start() { }
+        public void Stop() { }
+    }
+    public interface IAnimatedTextSegment : System.IDisposable, Termina.Components.Streaming.ITextSegment
+    {
+        R3.Observable<R3.Unit> Invalidated { get; }
+        bool IsAnimating { get; }
+        void Start();
+        void Stop();
+    }
+    public interface ICompositeTextSegment : System.IDisposable, Termina.Components.Streaming.ITextSegment
+    {
+        System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.ITextSegment> Children { get; }
+    }
+    public interface IStreamingTextBuffer
+    {
+        int CharacterCount { get; }
+        bool HasContent { get; }
+        bool HasContentOnCurrentLine { get; }
+        int LineCount { get; }
+        Termina.Components.Streaming.StreamMode Mode { get; }
+        void Append(Termina.Components.Streaming.StyledSegment segment);
+        void Append(string text);
+        void Append(string text, Termina.Terminal.Color foreground);
+        void Append(string text, Termina.Terminal.TextStyle style);
+        void AppendLine(string line);
+        void AppendLine(string line, Termina.Terminal.Color foreground);
+        void AppendLine(string line, Termina.Terminal.TextStyle style);
+        void Clear();
+        System.Collections.Generic.IReadOnlyList<string> GetAllLines();
+        System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.StyledLine> GetAllStyledLines();
+        System.Collections.Generic.IReadOnlyList<string> GetVisibleLines(int viewportHeight, int viewportWidth);
+        System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.StyledLine> GetVisibleStyledLines(int viewportHeight, int viewportWidth);
+    }
+    public interface ITextSegment : System.IDisposable
+    {
+        Termina.Components.Streaming.StyledSegment GetCurrentSegment();
+    }
+    public class PersistedStreamBuffer : Termina.Components.Streaming.IStreamingTextBuffer
+    {
+        public PersistedStreamBuffer() { }
+        public bool AutoScroll { get; set; }
+        public int CharacterCount { get; }
+        public bool HasContent { get; }
+        public bool HasContentOnCurrentLine { get; }
+        public bool IsScrolledUp { get; }
+        public int LineCount { get; }
+        public Termina.Components.Streaming.StreamMode Mode { get; }
+        public int ScrollOffset { get; }
+        public void Append(Termina.Components.Streaming.StyledSegment segment) { }
+        public void Append(string text) { }
+        public void Append(string text, Termina.Terminal.Color foreground) { }
+        public void Append(string text, Termina.Terminal.TextStyle style) { }
+        public void AppendLine(string line) { }
+        public void AppendLine(string line, Termina.Terminal.Color foreground) { }
+        public void AppendLine(string line, Termina.Terminal.TextStyle style) { }
+        public void Clear() { }
+        public System.Collections.Generic.IReadOnlyList<string> GetAllLines() { }
+        public System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.StyledLine> GetAllStyledLines() { }
+        public int GetMaxScrollOffset(int viewportWidth) { }
+        public System.Collections.Generic.IReadOnlyList<string> GetVisibleLines(int viewportHeight, int viewportWidth) { }
+        public System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.StyledLine> GetVisibleStyledLines(int viewportHeight, int viewportWidth) { }
+        public int GetWrappedLineCount(int viewportWidth) { }
+        public void ScrollDown(int lines = 1) { }
+        public void ScrollToBottom() { }
+        public void ScrollToTop(int viewportWidth = 80) { }
+        public void ScrollUp(int lines = 1, int viewportWidth = 80) { }
+    }
+    public sealed class SpinnerSegment : System.IDisposable, Termina.Components.Streaming.IAnimatedTextSegment, Termina.Components.Streaming.ITextSegment
+    {
+        public SpinnerSegment(Termina.Components.Streaming.SpinnerStyle style = 0, Termina.Terminal.Color? color = default, int intervalMs = 80, System.TimeProvider? timeProvider = null) { }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public bool IsAnimating { get; }
+        public void Dispose() { }
+        public Termina.Components.Streaming.StyledSegment GetCurrentSegment() { }
+        public void Start() { }
+        public void Stop() { }
+    }
+    public enum SpinnerStyle
+    {
+        Dots = 0,
+        Line = 1,
+        Arrow = 2,
+        Bounce = 3,
+        Box = 4,
+        Circle = 5,
+    }
+    public sealed class StaticTextSegment : System.IDisposable, Termina.Components.Streaming.ITextSegment
+    {
+        public StaticTextSegment(Termina.Components.Streaming.StyledSegment segment) { }
+        public StaticTextSegment(string text, Termina.Terminal.TextStyle? style = default) { }
+        public StaticTextSegment(string text, Termina.Terminal.Color? foreground = default, Termina.Terminal.Color? background = default, Termina.Terminal.TextDecoration decoration = 0) { }
+        public void Dispose() { }
+        public Termina.Components.Streaming.StyledSegment GetCurrentSegment() { }
+    }
+    public enum StreamMode
+    {
+        Persisted = 0,
+        Windowed = 1,
+    }
+    public sealed class StyledLine
+    {
+        public StyledLine() { }
+        public StyledLine(System.Collections.Generic.IEnumerable<Termina.Components.Streaming.StyledSegment> segments) { }
+        public StyledLine(Termina.Components.Streaming.StyledSegment segment) { }
+        public StyledLine(string text) { }
+        public int ColumnCount { get; }
+        public bool IsEmpty { get; }
+        public char this[int index] { get; }
+        public int Length { get; }
+        public int SegmentCount { get; }
+        public System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.StyledSegment> Segments { get; }
+        public static Termina.Components.Streaming.StyledLine Empty { get; }
+        public void Append(Termina.Components.Streaming.StyledSegment segment) { }
+        public void Append(string text) { }
+        public void Append(string text, Termina.Terminal.Color foreground) { }
+        public void Append(string text, Termina.Terminal.TextStyle style) { }
+        public void Clear() { }
+        public Termina.Components.Streaming.StyledLine Clone() { }
+        public Termina.Terminal.TextStyle GetStyleAt(int index) { }
+        public Termina.Components.Streaming.StyledLine SliceByColumns(int startColumn, int maxColumns) { }
+        public Termina.Components.Streaming.StyledLine Substring(int startIndex) { }
+        public Termina.Components.Streaming.StyledLine Substring(int startIndex, int length) { }
+        public string ToPlainText() { }
+        public override string ToString() { }
+    }
+    public readonly struct StyledSegment : System.IEquatable<Termina.Components.Streaming.StyledSegment>
+    {
+        public StyledSegment(string text) { }
+        public StyledSegment(string text, Termina.Terminal.Color foreground) { }
+        public StyledSegment(string text, Termina.Terminal.TextStyle style) { }
+        public StyledSegment(string text, Termina.Terminal.Color foreground, Termina.Terminal.Color background, Termina.Terminal.TextDecoration decoration = 0) { }
+        public bool IsEmpty { get; }
+        public int Length { get; }
+        public Termina.Terminal.TextStyle Style { get; init; }
+        public string Text { get; init; }
+        public static Termina.Components.Streaming.StyledSegment Empty { get; }
+        public bool Equals(Termina.Components.Streaming.StyledSegment other) { }
+        public override int GetHashCode() { }
+        public Termina.Components.Streaming.StyledSegment Substring(int startIndex) { }
+        public Termina.Components.Streaming.StyledSegment Substring(int startIndex, int length) { }
+        public override string ToString() { }
+        public Termina.Components.Streaming.StyledSegment WithStyle(Termina.Terminal.TextStyle newStyle) { }
+        public Termina.Components.Streaming.StyledSegment WithText(string newText) { }
+    }
+    public static class StyledWordWrapper
+    {
+        public static int CalculateTotalWrappedLineCount(System.Collections.Generic.IEnumerable<Termina.Components.Streaming.StyledLine> lines, int width) { }
+        public static int CalculateWrappedLineCount(Termina.Components.Streaming.StyledLine line, int width) { }
+        public static System.Collections.Generic.List<Termina.Components.Streaming.StyledLine> WrapLine(Termina.Components.Streaming.StyledLine line, int width) { }
+        public static System.Collections.Generic.List<Termina.Components.Streaming.StyledLine> WrapLines(System.Collections.Generic.IEnumerable<Termina.Components.Streaming.StyledLine> lines, int width) { }
+    }
+    public static class TextSegmentExtensions
+    {
+        public static Termina.Components.Streaming.BlockSegment AsBlock(this Termina.Components.Streaming.ITextSegment segment) { }
+    }
+    public class WindowedStreamBuffer : Termina.Components.Streaming.IStreamingTextBuffer
+    {
+        public WindowedStreamBuffer(int windowSize = 3) { }
+        public int CharacterCount { get; }
+        public long DiscardedLineCount { get; }
+        public bool HasContent { get; }
+        public bool HasContentOnCurrentLine { get; }
+        public int LineCount { get; }
+        public Termina.Components.Streaming.StreamMode Mode { get; }
+        public int WindowSize { get; }
+        public void Append(Termina.Components.Streaming.StyledSegment segment) { }
+        public void Append(string text) { }
+        public void Append(string text, Termina.Terminal.Color foreground) { }
+        public void Append(string text, Termina.Terminal.TextStyle style) { }
+        public void AppendLine(string line) { }
+        public void AppendLine(string line, Termina.Terminal.Color foreground) { }
+        public void AppendLine(string line, Termina.Terminal.TextStyle style) { }
+        public void Clear() { }
+        public System.Collections.Generic.IReadOnlyList<string> GetAllLines() { }
+        public System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.StyledLine> GetAllStyledLines() { }
+        public System.Collections.Generic.IReadOnlyList<string> GetVisibleLines(int viewportHeight, int viewportWidth) { }
+        public System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.StyledLine> GetVisibleStyledLines(int viewportHeight, int viewportWidth) { }
+        public void ResetDiscardedCount() { }
+    }
+    public static class WordWrapper
+    {
+        public static int CalculateTotalWrappedLineCount(System.Collections.Generic.IEnumerable<string> lines, int width) { }
+        public static int CalculateWrappedLineCount(string text, int width) { }
+        public static System.Collections.Generic.List<string> WrapLine(string text, int width) { }
+        public static System.Collections.Generic.List<string> WrapLines(System.Collections.Generic.IEnumerable<string> lines, int width) { }
+    }
+}
+namespace Termina.Diagnostics
+{
+    public sealed class FileTraceListener : System.IAsyncDisposable, System.IDisposable, Termina.Diagnostics.ITerminaTraceListener
+    {
+        public FileTraceListener(string filePath, Termina.Diagnostics.TerminaTraceCategory categories = 127, Termina.Diagnostics.TerminaTraceLevel minimumLevel = 1) { }
+        public FileTraceListener(System.IO.TextWriter writer, Termina.Diagnostics.TerminaTraceCategory categories = 127, Termina.Diagnostics.TerminaTraceLevel minimumLevel = 1, bool ownsWriter = false) { }
+        public void Dispose() { }
+        public System.Threading.Tasks.ValueTask DisposeAsync() { }
+        public bool IsEnabled(Termina.Diagnostics.TerminaTraceLevel level, Termina.Diagnostics.TerminaTraceCategory category) { }
+        public void Write(in Termina.Diagnostics.TraceEvent evt) { }
+        public static Termina.Diagnostics.FileTraceListener CreateStdErr(Termina.Diagnostics.TerminaTraceCategory categories = 127, Termina.Diagnostics.TerminaTraceLevel minimumLevel = 1) { }
+    }
+    public interface ITerminaTraceListener
+    {
+        bool IsEnabled(Termina.Diagnostics.TerminaTraceLevel level, Termina.Diagnostics.TerminaTraceCategory category);
+        void Write(in Termina.Diagnostics.TraceEvent evt);
+    }
+    public sealed class LoggerTraceListener : Termina.Diagnostics.ITerminaTraceListener
+    {
+        public LoggerTraceListener(Microsoft.Extensions.Logging.ILoggerFactory loggerFactory, Termina.Diagnostics.TerminaTraceCategory categories = 127, Termina.Diagnostics.TerminaTraceLevel minimumLevel = 1) { }
+        public bool IsEnabled(Termina.Diagnostics.TerminaTraceLevel level, Termina.Diagnostics.TerminaTraceCategory category) { }
+        public void Write(in Termina.Diagnostics.TraceEvent evt) { }
+    }
+    public static class TerminaTrace
+    {
+        public static Termina.Diagnostics.TerminaTrace.CategoryTrace Focus { get; }
+        public static Termina.Diagnostics.TerminaTrace.CategoryTrace Input { get; }
+        public static bool IsEnabled { get; }
+        public static Termina.Diagnostics.TerminaTrace.CategoryTrace Layout { get; }
+        public static Termina.Diagnostics.TerminaTrace.CategoryTrace Page { get; }
+        public static Termina.Diagnostics.TerminaTrace.CategoryTrace Platform { get; }
+        public static Termina.Diagnostics.TerminaTrace.CategoryTrace Reactive { get; }
+        public static Termina.Diagnostics.TerminaTrace.CategoryTrace Render { get; }
+        public static void Configure(Termina.Diagnostics.ITerminaTraceListener listener, Termina.Diagnostics.TerminaTraceCategory categories = 127, Termina.Diagnostics.TerminaTraceLevel minimumLevel = 1) { }
+        public static void Disable() { }
+        public sealed class CategoryTrace
+        {
+            public bool IsEnabled { get; }
+            public void Debug(object source, string message) { }
+            public void Debug<T0>(object source, string template, T0 arg0) { }
+            public void Debug<T0, T1>(object source, string template, T0 arg0, T1 arg1) { }
+            public void Debug<T0, T1, T2>(object source, string template, T0 arg0, T1 arg1, T2 arg2) { }
+            public void Error(object source, string message) { }
+            public void Error<T0>(object source, string template, T0 arg0) { }
+            public void Error<T0, T1>(object source, string template, T0 arg0, T1 arg1) { }
+            public void Info(object source, string message) { }
+            public void Info<T0>(object source, string template, T0 arg0) { }
+            public void Info<T0, T1>(object source, string template, T0 arg0, T1 arg1) { }
+            public void Trace(object source, string message) { }
+            public void Trace<T0>(object source, string template, T0 arg0) { }
+            public void Trace<T0, T1>(object source, string template, T0 arg0, T1 arg1) { }
+            public void Trace<T0, T1, T2>(object source, string template, T0 arg0, T1 arg1, T2 arg2) { }
+            public void Warning(object source, string message) { }
+            public void Warning<T0>(object source, string template, T0 arg0) { }
+            public void Warning<T0, T1>(object source, string template, T0 arg0, T1 arg1) { }
+        }
+    }
+    [System.Flags]
+    public enum TerminaTraceCategory
+    {
+        None = 0,
+        Focus = 1,
+        Layout = 2,
+        Input = 4,
+        Page = 8,
+        Reactive = 16,
+        Render = 32,
+        Platform = 64,
+        All = 127,
+    }
+    public static class TerminaTraceExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddTerminaFileTracing(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, string filePath, Termina.Diagnostics.TerminaTraceCategory categories = 127, Termina.Diagnostics.TerminaTraceLevel minimumLevel = 1) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddTerminaLoggerTracing(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Termina.Diagnostics.TerminaTraceCategory categories = 127, Termina.Diagnostics.TerminaTraceLevel minimumLevel = 1) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddTerminaTracing(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Termina.Diagnostics.ITerminaTraceListener listener, Termina.Diagnostics.TerminaTraceCategory categories = 127, Termina.Diagnostics.TerminaTraceLevel minimumLevel = 1) { }
+    }
+    public enum TerminaTraceLevel
+    {
+        Trace = 0,
+        Debug = 1,
+        Info = 2,
+        Warning = 3,
+        Error = 4,
+    }
+    public readonly struct TraceEvent
+    {
+        public readonly Termina.Diagnostics.TerminaTraceCategory Category;
+        public readonly Termina.Diagnostics.TerminaTraceLevel Level;
+        public readonly int SourceHash;
+        public readonly string SourceType;
+        public readonly string Template;
+        public readonly long TimestampTicks;
+        public TraceEvent(Termina.Diagnostics.TerminaTraceLevel level, Termina.Diagnostics.TerminaTraceCategory category, string sourceType, int sourceHash, string template) { }
+        public TraceEvent(Termina.Diagnostics.TerminaTraceLevel level, Termina.Diagnostics.TerminaTraceCategory category, string sourceType, int sourceHash, string template, object? arg0) { }
+        public TraceEvent(Termina.Diagnostics.TerminaTraceLevel level, Termina.Diagnostics.TerminaTraceCategory category, string sourceType, int sourceHash, string template, object? arg0, object? arg1) { }
+        public TraceEvent(Termina.Diagnostics.TerminaTraceLevel level, Termina.Diagnostics.TerminaTraceCategory category, string sourceType, int sourceHash, string template, object? arg0, object? arg1, object? arg2) { }
+        public System.DateTime Timestamp { get; }
+        public string FormatMessage() { }
+    }
+}
+namespace Termina.Extensions
+{
+    public static class ObservableLayoutExtensions
+    {
+        public static Termina.Layout.DynamicLayoutNode AsDynamicLayout(this System.Func<Termina.Layout.ILayoutNode> factory, R3.Observable<R3.Unit> invalidateOn) { }
+        public static Termina.Layout.DynamicLayoutNode AsDynamicLayout(this System.Func<Termina.Layout.ILayoutNode> factory, R3.Observable<R3.Unit> invalidateOn, R3.FrameProvider frameProvider) { }
+        public static Termina.Layout.ReactiveLayoutNode AsLayout(this R3.Observable<Termina.Layout.ILayoutNode> source) { }
+        public static Termina.Layout.ReactiveLayoutNode AsLayout(this R3.Observable<Termina.Layout.ILayoutNode> source, R3.FrameProvider frameProvider) { }
+        public static Termina.Layout.ReactiveLayoutNode<T> AsLayout<T>(this R3.Observable<T> source, System.Func<T, Termina.Layout.ILayoutNode> transform) { }
+        public static Termina.Layout.ReactiveLayoutNode<T> AsLayout<T>(this R3.Observable<T> source, System.Func<T, Termina.Layout.ILayoutNode> transform, R3.FrameProvider frameProvider) { }
+        public static Termina.Layout.ReactiveLayoutNode<string> AsTextLayout(this R3.Observable<string> source) { }
+        public static Termina.Layout.ReactiveLayoutNode<string> AsTextLayout(this R3.Observable<string> source, R3.FrameProvider frameProvider) { }
+    }
+}
+namespace Termina.Hosting
+{
+    public enum CtrlCHandlingMode
+    {
+        Disabled = 0,
+        DoublePressWhenRawInput = 1,
+        DoublePressAlways = 2,
+    }
+    public enum KittyKeyboardMode
+    {
+        Off = 0,
+        DisambiguateOnly = 1,
+        ReportAllKeys = 8,
+        ReportAllKeysPlusDisambiguate = 9,
+        ReportAllKeysWithEventTypes = 11,
+    }
+    public enum ScrollInputMode
+    {
+        LegacyMouseTracking = 0,
+        AlternateScroll = 1,
+        NativeTerminal = 2,
+    }
+    public sealed class TerminaBuilder
+    {
+        public Termina.Hosting.TerminaBuilder ConfigureRuntime(System.Action<Termina.Hosting.TerminaRuntimeOptions> configure) { }
+        public Termina.Hosting.TerminaBuilder RegisterRoute<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)]  TPage, [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)]  TViewModel>(string routeTemplate, Termina.Pages.NavigationBehavior behavior = 0)
+            where TPage : Termina.Reactive.ReactivePage<TViewModel>
+            where TViewModel : Termina.Reactive.ReactiveViewModel { }
+        public Termina.Hosting.TerminaBuilder RegisterRoute<TPage, TViewModel>(string routeTemplate, System.Func<System.IServiceProvider, TPage> pageFactory, System.Func<System.IServiceProvider, TViewModel> viewModelFactory, Termina.Pages.NavigationBehavior behavior = 0)
+            where TPage : Termina.Reactive.ReactivePage<TViewModel>
+            where TViewModel : Termina.Reactive.ReactiveViewModel { }
+    }
+    public sealed class TerminaRuntimeOptions
+    {
+        public TerminaRuntimeOptions() { }
+        public Termina.Hosting.CtrlCHandlingMode CtrlCHandlingMode { get; set; }
+        public Termina.Hosting.KittyKeyboardMode KittyKeyboardMode { get; set; }
+        public bool PreferRawInput { get; set; }
+        public Termina.Hosting.TerminalPresentationMode PresentationMode { get; set; }
+        public System.TimeSpan RenderFrameInterval { get; set; }
+        public Termina.Hosting.ScrollInputMode ScrollInputMode { get; set; }
+        public System.TimeProvider TimeProvider { get; set; }
+    }
+    public static class TerminaServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddTermina(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Termina.Hosting.TerminaBuilder> configure) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddTermina(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, string? startPage, System.Action<Termina.Hosting.TerminaBuilder> configure) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddTerminaConsoleInput(this Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddTerminaVirtualInput(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, Termina.Input.VirtualInputSource inputSource) { }
+    }
+    public enum TerminalPresentationMode
+    {
+        FullScreen = 0,
+        Inline = 1,
+    }
+}
+namespace Termina.Input
+{
+    public sealed class ConsoleInputSource : Termina.Input.IInputSource
+    {
+        public ConsoleInputSource() { }
+        public System.Threading.Tasks.Task RunAsync(System.Threading.Channels.ChannelWriter<object> writer, System.Threading.CancellationToken cancellationToken) { }
+    }
+    public sealed class FocusManager : System.IDisposable, Termina.Input.IFocusManager
+    {
+        public FocusManager() { }
+        public Termina.Layout.IFocusable? CurrentFocus { get; }
+        public R3.Observable<Termina.Layout.IFocusable?> FocusChanged { get; }
+        public void ClearFocus() { }
+        public System.Collections.Generic.IReadOnlyList<Termina.Layout.IFocusable> CollectFocusables(Termina.Layout.ILayoutNode root) { }
+        public void CycleFocus(System.Collections.Generic.IReadOnlyList<Termina.Layout.IFocusable> focusables, bool reverse = false) { }
+        public void Dispose() { }
+        public void PopFocus() { }
+        public void PushFocus(Termina.Layout.IFocusable focusable) { }
+        public bool RouteInput(System.ConsoleKeyInfo key) { }
+        public void SetFocus(Termina.Layout.IFocusable focusable) { }
+    }
+    public enum FocusPolicy
+    {
+        Manual = 0,
+        FirstFocusable = 1,
+        ByPriority = 2,
+    }
+    public interface IFocusManager
+    {
+        Termina.Layout.IFocusable? CurrentFocus { get; }
+        R3.Observable<Termina.Layout.IFocusable?> FocusChanged { get; }
+        void ClearFocus();
+        System.Collections.Generic.IReadOnlyList<Termina.Layout.IFocusable> CollectFocusables(Termina.Layout.ILayoutNode root);
+        void CycleFocus(System.Collections.Generic.IReadOnlyList<Termina.Layout.IFocusable> focusables, bool reverse = false);
+        void PopFocus();
+        void PushFocus(Termina.Layout.IFocusable focusable);
+        bool RouteInput(System.ConsoleKeyInfo key);
+        void SetFocus(Termina.Layout.IFocusable focusable);
+    }
+    public interface IInputEvent { }
+    public interface IInputSource
+    {
+        System.Threading.Tasks.Task RunAsync(System.Threading.Channels.ChannelWriter<object> writer, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IPasteReceiver
+    {
+        bool HandlePaste(Termina.Input.PasteEvent paste);
+    }
+    public sealed class KeyPressed : System.IEquatable<Termina.Input.KeyPressed>, Termina.Input.IInputEvent
+    {
+        public KeyPressed(System.ConsoleKeyInfo KeyInfo) { }
+        public System.ConsoleKeyInfo KeyInfo { get; init; }
+    }
+    public enum MouseButton
+    {
+        None = 0,
+        Left = 1,
+        Right = 2,
+        Middle = 3,
+        WheelUp = 4,
+        WheelDown = 5,
+    }
+    public sealed class MouseEvent : System.IEquatable<Termina.Input.MouseEvent>, Termina.Input.IInputEvent
+    {
+        public MouseEvent(int X, int Y, Termina.Input.MouseButton Button, Termina.Input.MouseEventType EventType, System.ConsoleModifiers Modifiers = 0) { }
+        public Termina.Input.MouseButton Button { get; init; }
+        public Termina.Input.MouseEventType EventType { get; init; }
+        public System.ConsoleModifiers Modifiers { get; init; }
+        public int X { get; init; }
+        public int Y { get; init; }
+    }
+    public enum MouseEventType
+    {
+        Press = 0,
+        Release = 1,
+        Drag = 2,
+        Move = 3,
+        Scroll = 4,
+    }
+    public sealed class MouseScrollEvent : System.IEquatable<Termina.Input.MouseScrollEvent>, Termina.Input.IInputEvent
+    {
+        public MouseScrollEvent(int Delta) { }
+        public int Delta { get; init; }
+        public System.ConsoleModifiers Modifiers { get; init; }
+        public int? X { get; init; }
+        public int? Y { get; init; }
+    }
+    public sealed class PageKeyBindings
+    {
+        public PageKeyBindings() { }
+        public int Count { get; }
+        public void Clear() { }
+        public void Register(System.ConsoleKey key, System.Action handler) { }
+        public void Register(System.ConsoleKey key, System.ConsoleModifiers modifiers, System.Action handler) { }
+        public bool TryHandle(System.ConsoleKeyInfo keyInfo) { }
+        public bool Unregister(System.ConsoleKey key, System.ConsoleModifiers modifiers = 0) { }
+    }
+    public sealed class PasteEvent : System.IEquatable<Termina.Input.PasteEvent>, Termina.Input.IInputEvent
+    {
+        public PasteEvent(string Content) { }
+        public string Content { get; init; }
+    }
+    public sealed class PlatformInputSource : Termina.Input.IInputSource
+    {
+        public PlatformInputSource(Termina.Platform.IPlatformConsole console, Termina.Platform.PlatformInputConfiguration configuration) { }
+        public System.Threading.Tasks.Task RunAsync(System.Threading.Channels.ChannelWriter<object> writer, System.Threading.CancellationToken cancellationToken) { }
+    }
+    public sealed class RedrawRequested : Termina.Input.IInputEvent
+    {
+        public static readonly Termina.Input.RedrawRequested Instance;
+    }
+    public sealed class ResizeEvent : System.IEquatable<Termina.Input.ResizeEvent>, Termina.Input.IInputEvent
+    {
+        public ResizeEvent(int Width, int Height) { }
+        public int Height { get; init; }
+        public int Width { get; init; }
+    }
+    public enum TerminalCapabilityAvailability
+    {
+        Unknown = 0,
+        Available = 1,
+        Unavailable = 2,
+    }
+    public readonly struct TerminalInputCapabilities : System.IEquatable<Termina.Input.TerminalInputCapabilities>
+    {
+        public TerminalInputCapabilities(Termina.Input.TerminalCapabilityAvailability ModifiedEnterKeySupport, Termina.Input.TerminalInputCapabilitySource Source) { }
+        public Termina.Input.TerminalCapabilityAvailability ModifiedEnterKeySupport { get; init; }
+        public Termina.Input.TerminalInputCapabilitySource Source { get; init; }
+    }
+    public sealed class TerminalInputCapabilitiesChanged : System.IEquatable<Termina.Input.TerminalInputCapabilitiesChanged>, Termina.Input.IInputEvent
+    {
+        public TerminalInputCapabilitiesChanged(Termina.Input.TerminalInputCapabilities Capabilities) { }
+        public Termina.Input.TerminalInputCapabilities Capabilities { get; init; }
+    }
+    public enum TerminalInputCapabilitySource
+    {
+        None = 0,
+        NativeConsole = 1,
+        KittyKeyboardProtocol = 2,
+        LegacyTerminal = 3,
+        CustomInput = 4,
+    }
+    public sealed class VirtualInputSource : Termina.Input.IInputSource
+    {
+        public VirtualInputSource() { }
+        public void Complete() { }
+        public void EnqueueChar(char c) { }
+        public void EnqueueClick(int x, int y, Termina.Input.MouseButton button = 1) { }
+        public void EnqueueKey(System.ConsoleKey key) { }
+        public void EnqueueKey(System.ConsoleKeyInfo key) { }
+        public void EnqueueKey(System.ConsoleKey key, bool shift = false, bool alt = false, bool control = false) { }
+        public void EnqueueMouse(int x, int y, Termina.Input.MouseButton button, Termina.Input.MouseEventType eventType, System.ConsoleModifiers modifiers = 0) { }
+        public void EnqueueResize(int width, int height) { }
+        public void EnqueueScroll(int x, int y, bool up) { }
+        public void EnqueueString(string text) { }
+        public System.Threading.Tasks.Task RunAsync(System.Threading.Channels.ChannelWriter<object> writer, System.Threading.CancellationToken cancellationToken) { }
+    }
+}
+namespace Termina.Layout
+{
+    public enum AutoScrollPolicy
+    {
+        None = 0,
+        TailWhenAtBottom = 1,
+        AlwaysTail = 2,
+    }
+    public enum BackdropStyle
+    {
+        Transparent = 0,
+        Dim = 1,
+        Solid = 2,
+    }
+    public sealed class ConditionalNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public ConditionalNode(R3.Observable<bool> condition, Termina.Layout.ILayoutNode thenNode, Termina.Layout.ILayoutNode? elseNode = null) { }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public override void Dispose() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public override void OnDeactivate() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public override void SetRuntimeContext(Termina.Layout.LayoutRuntimeContext context) { }
+    }
+    public abstract class ContainerNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IContainerNode, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        protected ContainerNode() { }
+        public System.Collections.Generic.IReadOnlyList<Termina.Layout.ILayoutNode> Children { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        protected void AddChild(Termina.Layout.ILayoutNode child) { }
+        protected void AddChildren(System.Collections.Generic.IEnumerable<Termina.Layout.ILayoutNode> children) { }
+        public override void Dispose() { }
+        public override void OnActivate() { }
+        public override void OnDeactivate() { }
+    }
+    public enum CopyFeedbackMode
+    {
+        None = 0,
+        Toast = 1,
+        InlineIndicator = 2,
+        ToastAndInline = 3,
+    }
+    public sealed class CopyKeyBinding : System.IEquatable<Termina.Layout.CopyKeyBinding>
+    {
+        public CopyKeyBinding(System.ConsoleKey Key, System.ConsoleModifiers Modifiers = 0) { }
+        public System.ConsoleKey Key { get; init; }
+        public System.ConsoleModifiers Modifiers { get; init; }
+    }
+    public sealed class CopyableTextNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IFocusable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public CopyableTextNode(Termina.Clipboard.IClipboardService clipboardService, string content, Termina.Notifications.IToastService? toastService = null) { }
+        public bool CanFocus { get; }
+        public string Content { get; }
+        public System.TimeSpan FeedbackDuration { get; }
+        public Termina.Layout.CopyFeedbackMode FeedbackMode { get; }
+        public int FocusPriority { get; }
+        public Termina.Terminal.Color FocusedBackground { get; }
+        public Termina.Terminal.Color FocusedForeground { get; }
+        public Termina.Terminal.Color Foreground { get; }
+        public bool HasFocus { get; }
+        public bool HasSelection { get; }
+        public string? Hint { get; }
+        public Termina.Terminal.Color InlineIndicatorForeground { get; }
+        public string InlineIndicatorText { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public string SelectedText { get; }
+        public Termina.Terminal.Color SelectionBackground { get; }
+        public Termina.Terminal.Color SelectionForeground { get; }
+        public string SemanticContent { get; }
+        public Termina.Notifications.ToastPosition ToastPosition { get; }
+        public override void Dispose() { }
+        public bool HandleInput(System.ConsoleKeyInfo key) { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public void OnBlurred() { }
+        public void OnFocused() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public bool TryCopy() { }
+        public Termina.Layout.CopyableTextNode WithContent(string content) { }
+        public Termina.Layout.CopyableTextNode WithCopyBindings(params Termina.Layout.CopyKeyBinding[] bindings) { }
+        public Termina.Layout.CopyableTextNode WithFeedbackDuration(System.TimeSpan duration) { }
+        public Termina.Layout.CopyableTextNode WithFeedbackMode(Termina.Layout.CopyFeedbackMode mode) { }
+        public Termina.Layout.CopyableTextNode WithFocusedColors(Termina.Terminal.Color foreground, Termina.Terminal.Color background) { }
+        public Termina.Layout.CopyableTextNode WithForeground(Termina.Terminal.Color color) { }
+        public Termina.Layout.CopyableTextNode WithHint(string? hint) { }
+        public Termina.Layout.CopyableTextNode WithInlineIndicator(string text, Termina.Terminal.Color? foreground = default) { }
+        public Termina.Layout.CopyableTextNode WithSelectionColors(Termina.Terminal.Color foreground, Termina.Terminal.Color background) { }
+        public Termina.Layout.CopyableTextNode WithSemanticContent(string semanticContent) { }
+        public Termina.Layout.CopyableTextNode WithToastPosition(Termina.Notifications.ToastPosition position) { }
+    }
+    public sealed class DefaultFileSystemProvider : Termina.Layout.IFileSystemProvider
+    {
+        public static readonly Termina.Layout.DefaultFileSystemProvider Instance;
+        public DefaultFileSystemProvider() { }
+        public bool DirectoryExists(string path) { }
+        public System.Collections.Generic.IReadOnlyList<Termina.Layout.FileSystemEntry> GetEntries(string directoryPath) { }
+        public string? GetParentDirectory(string path) { }
+    }
+    public sealed class DeferredNode : System.IDisposable, Termina.Layout.ILayoutNode
+    {
+        public DeferredNode(System.Func<Termina.Layout.ILayoutNode?> getNode) { }
+        public Termina.Layout.SizeConstraint HeightConstraint { get; }
+        public Termina.Layout.SizeConstraint WidthConstraint { get; }
+        public void Dispose() { }
+        public Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+    }
+    public sealed class DynamicLayoutNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public DynamicLayoutNode(System.Func<Termina.Layout.ILayoutNode> factory) { }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public override void Dispose() { }
+        public void Invalidate() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public override void OnDeactivate() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+    }
+    public sealed class EmptyNode : Termina.Layout.LayoutNode
+    {
+        public EmptyNode() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+    }
+    public enum FilePickerMode
+    {
+        Files = 0,
+        Directories = 1,
+        All = 2,
+    }
+    public sealed class FilePickerNode : System.IDisposable, Termina.Layout.IActivatableNode, Termina.Layout.IFocusable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode, Termina.Layout.ILayoutRuntimeContextAware
+    {
+        public FilePickerNode(string? startPath = null) { }
+        public bool CanFocus { get; }
+        public R3.Observable<R3.Unit> Cancelled { get; }
+        public string CurrentPath { get; }
+        public R3.Observable<string> DirectoryChanged { get; }
+        public int FocusPriority { get; }
+        public bool HasFocus { get; }
+        public Termina.Layout.SizeConstraint HeightConstraint { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public R3.Observable<System.Collections.Generic.IReadOnlyList<string>> SelectionConfirmed { get; }
+        public Termina.Layout.SizeConstraint WidthConstraint { get; }
+        public void Dispose() { }
+        public bool HandleInput(System.ConsoleKeyInfo key) { }
+        public Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public void OnActivate() { }
+        public void OnBlurred() { }
+        public void OnDeactivate() { }
+        public void OnFocused() { }
+        public void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public void SetRuntimeContext(Termina.Layout.LayoutRuntimeContext context) { }
+        public Termina.Layout.FilePickerNode WithDirectoryColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.FilePickerNode WithFileColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.FilePickerNode WithFileFilter(string? globPattern) { }
+        public Termina.Layout.FilePickerNode WithFileSystemProvider(Termina.Layout.IFileSystemProvider provider) { }
+        public Termina.Layout.FilePickerNode WithFillHeight(bool fill = true) { }
+        public Termina.Layout.FilePickerNode WithHighlightColors(Termina.Terminal.Color foreground, Termina.Terminal.Color background) { }
+        public Termina.Layout.FilePickerNode WithMode(Termina.Layout.FilePickerMode mode) { }
+        public Termina.Layout.FilePickerNode WithSelectionMode(Termina.Layout.FilePickerSelectionMode mode) { }
+        public Termina.Layout.FilePickerNode WithShowHidden(bool show = true) { }
+        public Termina.Layout.FilePickerNode WithStartPath(string path) { }
+        public Termina.Layout.FilePickerNode WithVisibleRows(int rows) { }
+    }
+    public enum FilePickerSelectionMode
+    {
+        Single = 0,
+        Multi = 1,
+    }
+    public sealed class FileSystemEntry : System.IEquatable<Termina.Layout.FileSystemEntry>
+    {
+        public FileSystemEntry(string Name, string FullPath, bool IsDirectory, long? Size = default, System.DateTimeOffset? LastModified = default) { }
+        public string FullPath { get; init; }
+        public bool IsDirectory { get; init; }
+        public System.DateTimeOffset? LastModified { get; init; }
+        public string Name { get; init; }
+        public long? Size { get; init; }
+    }
+    public sealed class GraphNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IAnimatedNode, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public GraphNode(int intervalMs = 500) { }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public bool IsAnimating { get; }
+        public override void Dispose() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public override void OnDeactivate() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.GraphNode SetData(double[] data) { }
+        public override void SetRuntimeContext(Termina.Layout.LayoutRuntimeContext context) { }
+        public void Start() { }
+        public void Stop() { }
+        public Termina.Layout.GraphNode WithColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.GraphNode WithGradient(Termina.Terminal.Gradient gradient) { }
+        public Termina.Layout.GraphNode WithRange(double min, double max) { }
+        public Termina.Layout.GraphNode WithStyle(Termina.Layout.GraphStyle style) { }
+    }
+    public enum GraphStyle
+    {
+        Blocks = 0,
+        Outline = 1,
+        Braille = 2,
+        Ascii = 3,
+    }
+    public enum GridNavigationMode
+    {
+        None = 0,
+        CellNavigation = 1,
+        ChildFocusRouting = 2,
+    }
+    public sealed class GridNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IFocusable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public GridNode(int rows = 0, int cols = 0) { }
+        public bool CanFocus { get; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Row",
+                "Col",
+                "Cell"})]
+        public R3.Observable<System.ValueTuple<int, int, Termina.Layout.ILayoutNode?>> CellActivated { get; }
+        public int CellPadding { get; }
+        public int ColumnCount { get; }
+        public int FocusPriority { get; }
+        public Termina.Terminal.Color FocusedCellBackground { get; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Row",
+                "Col"})]
+        public R3.Observable<System.ValueTuple<int, int>> FocusedCellChanged { get; }
+        public Termina.Terminal.Color FocusedCellForeground { get; }
+        public int FocusedColumn { get; }
+        public int FocusedRow { get; }
+        public Termina.Terminal.Color? GridLineColor { get; }
+        public Termina.Rendering.BorderStyle GridLines { get; }
+        public bool HasFocus { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public Termina.Layout.GridNavigationMode NavigationMode { get; }
+        public int RowCount { get; }
+        public bool ShowFocusHighlight { get; }
+        public Termina.Layout.GridNode AddRow(params Termina.Layout.ILayoutNode?[] cells) { }
+        public override void Dispose() { }
+        public bool HandleInput(System.ConsoleKeyInfo key) { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public void OnBlurred() { }
+        public override void OnDeactivate() { }
+        public void OnFocused() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.GridNode SetCell(int row, int col, Termina.Layout.ILayoutNode? content, int colSpan = 1, int rowSpan = 1) { }
+        public Termina.Layout.GridNode WithCellPadding(int padding) { }
+        public Termina.Layout.GridNode WithColumnWidths(params Termina.Layout.SizeConstraint[] constraints) { }
+        public Termina.Layout.GridNode WithColumns(params Termina.Layout.SizeConstraint[] constraints) { }
+        public Termina.Layout.GridNode WithFocusHighlight(Termina.Terminal.Color background, Termina.Terminal.Color foreground) { }
+        public Termina.Layout.GridNode WithGridLineColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.GridNode WithGridLines(Termina.Rendering.BorderStyle style) { }
+        public Termina.Layout.GridNode WithNavigationMode(Termina.Layout.GridNavigationMode mode) { }
+        public Termina.Layout.GridNode WithRowHeights(params Termina.Layout.SizeConstraint[] constraints) { }
+        public Termina.Layout.GridNode WithRows(params Termina.Layout.SizeConstraint[] constraints) { }
+        public Termina.Layout.GridNode WithoutFocusHighlight() { }
+    }
+    public sealed class HorizontalLayout : Termina.Layout.ContainerNode
+    {
+        public HorizontalLayout(System.Collections.Generic.IEnumerable<Termina.Layout.ILayoutNode> children) { }
+        public int Spacing { get; }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.HorizontalLayout WithChild(Termina.Layout.ILayoutNode child) { }
+        public Termina.Layout.HorizontalLayout WithSpacing(int spacing) { }
+    }
+    public interface IActivatableNode : System.IDisposable, Termina.Layout.ILayoutNode
+    {
+        void OnActivate();
+        void OnDeactivate();
+    }
+    public interface IAnimatedNode : System.IDisposable, Termina.Layout.ILayoutNode
+    {
+        bool IsAnimating { get; }
+        void Start();
+        void Stop();
+    }
+    public interface IContainerNode : System.IDisposable, Termina.Layout.ILayoutNode
+    {
+        System.Collections.Generic.IReadOnlyList<Termina.Layout.ILayoutNode> Children { get; }
+    }
+    public interface IFileSystemProvider
+    {
+        bool DirectoryExists(string path);
+        System.Collections.Generic.IReadOnlyList<Termina.Layout.FileSystemEntry> GetEntries(string directoryPath);
+        string? GetParentDirectory(string path);
+    }
+    public interface IFocusable : System.IDisposable, Termina.Layout.ILayoutNode
+    {
+        bool CanFocus { get; }
+        int FocusPriority { get; }
+        bool HasFocus { get; }
+        bool HandleInput(System.ConsoleKeyInfo key);
+        void OnBlurred();
+        void OnFocused();
+    }
+    public interface IInvalidatingNode : System.IDisposable, Termina.Layout.ILayoutNode
+    {
+        R3.Observable<R3.Unit> Invalidated { get; }
+    }
+    public interface ILayoutNode : System.IDisposable
+    {
+        Termina.Layout.SizeConstraint HeightConstraint { get; }
+        Termina.Layout.SizeConstraint WidthConstraint { get; }
+        Termina.Layout.Size Measure(Termina.Layout.Size available);
+        void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds);
+    }
+    public interface ILayoutRuntimeContextAware
+    {
+        void SetRuntimeContext(Termina.Layout.LayoutRuntimeContext context);
+    }
+    public interface IScrollable
+    {
+        bool CanScrollDown { get; }
+        bool CanScrollUp { get; }
+        void ScrollDown(int lines = 1);
+        void ScrollUp(int lines = 1);
+    }
+    public enum KeyedDynamicCachePolicy
+    {
+        RetainAll = 0,
+        EvictOnKeyChange = 1,
+    }
+    public sealed class KeyedDynamicLayoutNode<TKey> : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+        where TKey :  notnull
+    {
+        public KeyedDynamicLayoutNode(System.Func<TKey> keySelector, System.Func<TKey, Termina.Layout.ILayoutNode> contentFactory) { }
+        public KeyedDynamicLayoutNode(System.Func<TKey> keySelector, System.Func<TKey, Termina.Layout.ILayoutNode> contentFactory, Termina.Layout.KeyedDynamicCachePolicy cachePolicy) { }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public override void Dispose() { }
+        public void Invalidate() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public override void OnDeactivate() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+    }
+    public abstract class LayoutNode : System.IDisposable, Termina.Layout.IActivatableNode, Termina.Layout.ILayoutNode, Termina.Layout.ILayoutRuntimeContextAware
+    {
+        protected LayoutNode() { }
+        public Termina.Layout.SizeConstraint HeightConstraint { get; protected set; }
+        protected Termina.Layout.LayoutRuntimeContext? RuntimeContext { get; }
+        public Termina.Layout.SizeConstraint WidthConstraint { get; protected set; }
+        protected void ApplyRuntimeContextToChild(Termina.Layout.ILayoutNode child) { }
+        public virtual void Dispose() { }
+        public Termina.Layout.LayoutNode Fill(int weight = 1) { }
+        public Termina.Layout.LayoutNode Height(int value) { }
+        public Termina.Layout.LayoutNode HeightAuto(int min = 0, int max = 2147483647) { }
+        public Termina.Layout.LayoutNode HeightPercent(int value) { }
+        public abstract Termina.Layout.Size Measure(Termina.Layout.Size available);
+        public virtual void OnActivate() { }
+        public virtual void OnDeactivate() { }
+        public abstract void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds);
+        public virtual void SetRuntimeContext(Termina.Layout.LayoutRuntimeContext context) { }
+        public Termina.Layout.LayoutNode Width(int value) { }
+        public Termina.Layout.LayoutNode WidthAuto(int min = 0, int max = 2147483647) { }
+        public Termina.Layout.LayoutNode WidthFill(int weight = 1) { }
+        public Termina.Layout.LayoutNode WidthPercent(int value) { }
+    }
+    public sealed class LayoutRuntimeContext
+    {
+        public LayoutRuntimeContext(R3.FrameProvider renderFrameProvider, System.TimeProvider timeProvider, System.Action requestRedraw) { }
+        public LayoutRuntimeContext(R3.FrameProvider renderFrameProvider, System.TimeProvider timeProvider, System.Action requestRedraw, System.Action notifyLayoutStructureChanged) { }
+        public System.Action NotifyLayoutStructureChanged { get; }
+        public R3.FrameProvider RenderFrameProvider { get; }
+        public System.Action RequestRedraw { get; }
+        public System.TimeProvider TimeProvider { get; }
+    }
+    public static class Layouts
+    {
+        public static Termina.Layout.DeferredNode Deferred(System.Func<Termina.Layout.ILayoutNode?> getNode) { }
+        public static Termina.Layout.DynamicLayoutNode Dynamic(System.Func<Termina.Layout.ILayoutNode> factory) { }
+        public static Termina.Layout.EmptyNode Empty() { }
+        public static Termina.Layout.FilePickerNode FilePicker(string? startPath = null) { }
+        public static Termina.Layout.HorizontalLayout Horizontal(params Termina.Layout.ILayoutNode[] children) { }
+        public static Termina.Layout.KeyedDynamicLayoutNode<TKey> KeyedDynamic<TKey>(System.Func<TKey> keySelector, System.Func<TKey, Termina.Layout.ILayoutNode> contentFactory)
+            where TKey :  notnull { }
+        public static Termina.Layout.KeyedDynamicLayoutNode<TKey> KeyedDynamic<TKey>(System.Func<TKey> keySelector, System.Func<TKey, Termina.Layout.ILayoutNode> contentFactory, Termina.Layout.KeyedDynamicCachePolicy cachePolicy)
+            where TKey :  notnull { }
+        public static Termina.Layout.ModalNode Modal() { }
+        public static Termina.Layout.SelectionListNode<string> SelectionList(System.Collections.Generic.IEnumerable<string> items) { }
+        public static Termina.Layout.SelectionListNode<string> SelectionList(params string[] items) { }
+        public static Termina.Layout.SelectionListNode<T> SelectionList<T>(System.Collections.Generic.IEnumerable<T> items, System.Func<T, string> displaySelector) { }
+        public static Termina.Layout.StackLayout Stack(params Termina.Layout.ILayoutNode[] children) { }
+        public static Termina.Layout.VerticalLayout Vertical(params Termina.Layout.ILayoutNode[] children) { }
+        public static Termina.Layout.WizardNode<TStep> Wizard<TStep>()
+            where TStep :  struct, System.Enum { }
+    }
+    public sealed class ModalNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IFocusable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public ModalNode() { }
+        public bool CanFocus { get; }
+        public Termina.Layout.ILayoutNode? Content { get; set; }
+        public R3.Observable<R3.Unit> Dismissed { get; }
+        public int FocusPriority { get; }
+        public bool HasFocus { get; }
+        public new Termina.Layout.SizeConstraint HeightConstraint { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public new Termina.Layout.SizeConstraint WidthConstraint { get; }
+        public override void Dispose() { }
+        public bool HandleInput(System.ConsoleKeyInfo key) { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public void OnBlurred() { }
+        public override void OnDeactivate() { }
+        public void OnFocused() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.ModalNode WithBackdrop(Termina.Layout.BackdropStyle style) { }
+        public Termina.Layout.ModalNode WithBackdropChar(char c) { }
+        public Termina.Layout.ModalNode WithBackdropColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.ModalNode WithBorder(Termina.Rendering.BorderStyle style) { }
+        public Termina.Layout.ModalNode WithBorderColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.ModalNode WithContent(Termina.Layout.ILayoutNode content) { }
+        public Termina.Layout.ModalNode WithDismissOnEscape(bool dismiss = true) { }
+        public Termina.Layout.ModalNode WithFooter(string footer) { }
+        public Termina.Layout.ModalNode WithFooterColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.ModalNode WithPadding(int padding) { }
+        public Termina.Layout.ModalNode WithPosition(Termina.Layout.ModalPosition position) { }
+        public Termina.Layout.ModalNode WithTitle(string title) { }
+        public Termina.Layout.ModalNode WithTitleColor(Termina.Terminal.Color color) { }
+    }
+    public enum ModalPosition
+    {
+        Center = 0,
+        Top = 1,
+        Bottom = 2,
+    }
+    public sealed class PanelNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public PanelNode() { }
+        public Termina.Rendering.BorderStyle Border { get; }
+        public Termina.Terminal.Color? BorderColor { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public int Padding { get; }
+        public string? Title { get; }
+        public Termina.Terminal.Color? TitleColor { get; }
+        public override void Dispose() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public override void OnDeactivate() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.PanelNode WithBorder(Termina.Rendering.BorderStyle style) { }
+        public Termina.Layout.PanelNode WithBorderColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.PanelNode WithContent(Termina.Layout.ILayoutNode content) { }
+        public Termina.Layout.PanelNode WithContent(string text) { }
+        public Termina.Layout.PanelNode WithPadding(int padding) { }
+        public Termina.Layout.PanelNode WithTitle(string title) { }
+        public Termina.Layout.PanelNode WithTitleColor(Termina.Terminal.Color color) { }
+    }
+    public sealed class ProgressBarNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public ProgressBarNode() { }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public override void Dispose() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.ProgressBarNode WithColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.ProgressBarNode WithEmptyChar(char c) { }
+        public Termina.Layout.ProgressBarNode WithEmptyColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.ProgressBarNode WithFillChar(char c) { }
+        public Termina.Layout.ProgressBarNode WithGradient(Termina.Terminal.Gradient gradient) { }
+        public Termina.Layout.ProgressBarNode WithLabel(string format) { }
+        public Termina.Layout.ProgressBarNode WithRange(double min, double max) { }
+        public Termina.Layout.ProgressBarNode WithValue(double value) { }
+    }
+    public sealed class ReactiveLayoutNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public ReactiveLayoutNode(R3.Observable<Termina.Layout.ILayoutNode> source, Termina.Layout.ILayoutNode? initialChild = null) { }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public override void Dispose() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public override void OnDeactivate() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+    }
+    public sealed class ReactiveLayoutNode<T> : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public ReactiveLayoutNode(R3.Observable<T> source, System.Func<T, Termina.Layout.ILayoutNode> transform) { }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public override void Dispose() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public override void OnDeactivate() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+    }
+    public readonly struct Rect : System.IEquatable<Termina.Layout.Rect>
+    {
+        public static readonly Termina.Layout.Rect Empty;
+        public Rect(int X, int Y, int Width, int Height) { }
+        public int Bottom { get; }
+        public bool HasArea { get; }
+        public int Height { get; init; }
+        public int Right { get; }
+        public Termina.Layout.Size Size { get; }
+        public int Width { get; init; }
+        public int X { get; init; }
+        public int Y { get; init; }
+        public bool Contains(int x, int y) { }
+        public Termina.Layout.Rect Inset(int amount) { }
+        public Termina.Layout.Rect Inset(int left, int top, int right, int bottom) { }
+        public Termina.Layout.Rect Intersect(Termina.Layout.Rect other) { }
+        public Termina.Layout.Rect Offset(int dx, int dy) { }
+        public Termina.Layout.Rect WithSize(Termina.Layout.Size size) { }
+        public static Termina.Layout.Rect FromSize(int x, int y, Termina.Layout.Size size) { }
+    }
+    public readonly struct ScreenBounds : System.IEquatable<Termina.Layout.ScreenBounds>
+    {
+        public ScreenBounds(int X, int Y, int Width, int Height) { }
+        public int Bottom { get; }
+        public int Height { get; init; }
+        public int Right { get; }
+        public int Width { get; init; }
+        public int X { get; init; }
+        public int Y { get; init; }
+        public static Termina.Layout.ScreenBounds Empty { get; }
+        public bool Contains(int x, int y) { }
+        public Termina.Layout.ScreenBounds Intersect(Termina.Layout.ScreenBounds other) { }
+        public bool Intersects(Termina.Layout.ScreenBounds other) { }
+    }
+    public sealed class ScrollableContainerNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode, Termina.Layout.IScrollable
+    {
+        public ScrollableContainerNode() { }
+        public Termina.Layout.AutoScrollPolicy AutoScroll { get; set; }
+        public bool CanScrollDown { get; }
+        public bool CanScrollUp { get; }
+        public int ContentHeight { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public bool IsNearBottom { get; }
+        public int MaxScroll { get; }
+        public int ScrollOffset { get; }
+        public Termina.Terminal.Color ScrollbarThumbColor { get; set; }
+        public Termina.Terminal.Color ScrollbarTrackColor { get; set; }
+        public bool ShowScrollbar { get; set; }
+        public override void Dispose() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public void PageDown() { }
+        public void PageUp() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public void ScrollDown() { }
+        public void ScrollTo(int offset) { }
+        public void ScrollToBottom() { }
+        public void ScrollToTop() { }
+        public void ScrollUp() { }
+        public Termina.Layout.ScrollableContainerNode WithAutoScroll(Termina.Layout.AutoScrollPolicy policy) { }
+        public Termina.Layout.ScrollableContainerNode WithContent(Termina.Layout.ILayoutNode content) { }
+        public Termina.Layout.ScrollableContainerNode WithScrollbar(bool show) { }
+        public Termina.Layout.ScrollableContainerNode WithScrollbarColors(Termina.Terminal.Color track, Termina.Terminal.Color thumb) { }
+    }
+    public sealed class ScrollbarOptions : System.IEquatable<Termina.Layout.ScrollbarOptions>
+    {
+        public ScrollbarOptions(char TrackChar = ░, char ThumbChar = █, Termina.Terminal.Color? TrackColor = default, Termina.Terminal.Color? ThumbColor = default, bool AutoHide = true) { }
+        public bool AutoHide { get; init; }
+        public char ThumbChar { get; init; }
+        public Termina.Terminal.Color? ThumbColor { get; init; }
+        public char TrackChar { get; init; }
+        public Termina.Terminal.Color? TrackColor { get; init; }
+    }
+    public readonly struct SegmentId : System.IEquatable<Termina.Layout.SegmentId>
+    {
+        public static readonly Termina.Layout.SegmentId None;
+        public SegmentId(int Value) { }
+        public int Value { get; init; }
+    }
+    public sealed class SelectionItemContent : System.IDisposable
+    {
+        public SelectionItemContent() { }
+        public bool HasAnimations { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public int LineCount { get; }
+        public System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.ITextSegment>> Lines { get; }
+        public Termina.Layout.SelectionItemContent AddLine(System.Collections.Generic.IEnumerable<Termina.Components.Streaming.ITextSegment> segments) { }
+        public Termina.Layout.SelectionItemContent AddLine(params Termina.Components.Streaming.ITextSegment[] segments) { }
+        public Termina.Layout.SelectionItemContent AddLine(string text, Termina.Terminal.Color? foreground = default, Termina.Terminal.Color? background = default, Termina.Terminal.TextDecoration decoration = 0) { }
+        public void Dispose() { }
+        public string GetFirstLineText() { }
+        public string ToPlainText() { }
+        public static Termina.Layout.SelectionItemContent FromString(string text) { }
+    }
+    public sealed class SelectionItem<T> : System.IDisposable
+    {
+        public SelectionItem(T value, Termina.Layout.SelectionItemContent content, bool isOther = false) { }
+        public SelectionItem(T value, string displayText, bool isOther = false) { }
+        public Termina.Layout.SelectionItemContent Content { get; }
+        public string DisplayText { get; }
+        public bool IsOther { get; }
+        public bool IsSelected { get; }
+        public int LineCount { get; }
+        public T Value { get; }
+        public void Dispose() { }
+    }
+    public sealed class SelectionListNode<T> : System.IDisposable, Termina.Layout.IActivatableNode, Termina.Layout.IFocusable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode, Termina.Layout.ILayoutRuntimeContextAware
+    {
+        public SelectionListNode(System.Collections.Generic.IEnumerable<T> items, System.Func<T, Termina.Layout.SelectionItemContent> contentSelector) { }
+        public SelectionListNode(System.Collections.Generic.IEnumerable<T> items, System.Func<T, string> displaySelector) { }
+        public bool CanFocus { get; }
+        public R3.Observable<R3.Unit> Cancelled { get; }
+        public int FocusPriority { get; }
+        public bool HasFocus { get; }
+        public Termina.Layout.SizeConstraint HeightConstraint { get; }
+        public Termina.Layout.SelectionItem<T>? HighlightedItem { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public System.Collections.Generic.IReadOnlyList<Termina.Layout.SelectionItem<T>> Items { get; }
+        public R3.Observable<string> OtherSelected { get; }
+        public System.Collections.Generic.IReadOnlyList<T> SelectedItems { get; }
+        public R3.Observable<System.Collections.Generic.IReadOnlyList<T>> SelectionConfirmed { get; }
+        public Termina.Layout.SizeConstraint WidthConstraint { get; }
+        public void Dispose() { }
+        public bool HandleInput(System.ConsoleKeyInfo key) { }
+        public Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public void OnActivate() { }
+        public void OnBlurred() { }
+        public void OnDeactivate() { }
+        public void OnFocused() { }
+        public void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public void SetRuntimeContext(Termina.Layout.LayoutRuntimeContext context) { }
+        public Termina.Layout.SelectionListNode<T> WithFillHeight(bool fill = true) { }
+        public Termina.Layout.SelectionListNode<T> WithForeground(Termina.Terminal.Color color) { }
+        public Termina.Layout.SelectionListNode<T> WithHighlightColors(Termina.Terminal.Color foreground, Termina.Terminal.Color background) { }
+        public Termina.Layout.SelectionListNode<T> WithHighlightedIndex(int index) { }
+        public Termina.Layout.SelectionListNode<T> WithMode(Termina.Layout.SelectionMode mode) { }
+        public Termina.Layout.SelectionListNode<T> WithOtherOption(string label = "Other...", System.Action<string>? onOther = null) { }
+        public Termina.Layout.SelectionListNode<T> WithSelectedForeground(Termina.Terminal.Color color) { }
+        public Termina.Layout.SelectionListNode<T> WithShowNumbers(bool show = true) { }
+        public Termina.Layout.SelectionListNode<T> WithVisibleRows(int rows) { }
+    }
+    public enum SelectionMode
+    {
+        Single = 0,
+        Multi = 1,
+    }
+    public readonly struct Size : System.IEquatable<Termina.Layout.Size>
+    {
+        public static readonly Termina.Layout.Size Infinite;
+        public static readonly Termina.Layout.Size Zero;
+        public Size(int Width, int Height) { }
+        public int Height { get; init; }
+        public int Width { get; init; }
+        public Termina.Layout.Size AtLeast(Termina.Layout.Size min) { }
+        public Termina.Layout.Size Constrain(Termina.Layout.Size max) { }
+        public Termina.Layout.Size Expand(int horizontal, int vertical) { }
+        public Termina.Layout.Size Shrink(int horizontal, int vertical) { }
+        public static Termina.Layout.Size Square(int size) { }
+    }
+    public abstract class SizeConstraint : System.IEquatable<Termina.Layout.SizeConstraint>
+    {
+        protected SizeConstraint() { }
+        public virtual bool NeedsContentSize { get; }
+        public virtual bool NeedsRemaining { get; }
+        public abstract int Compute(int available, int contentSize, int remaining);
+        public static Termina.Layout.SizeConstraint AutoSize(int min = 0, int max = 2147483647) { }
+        public static Termina.Layout.SizeConstraint Exactly(int value) { }
+        public static Termina.Layout.SizeConstraint FillRemaining(int weight = 1) { }
+        public static Termina.Layout.SizeConstraint Percentage(int value) { }
+        public sealed class Auto : Termina.Layout.SizeConstraint, System.IEquatable<Termina.Layout.SizeConstraint.Auto>
+        {
+            public Auto() { }
+            public int Max { get; init; }
+            public int Min { get; init; }
+            public override bool NeedsContentSize { get; }
+            public override int Compute(int available, int contentSize, int remaining) { }
+        }
+        public sealed class Fill : Termina.Layout.SizeConstraint, System.IEquatable<Termina.Layout.SizeConstraint.Fill>
+        {
+            public Fill() { }
+            public override bool NeedsRemaining { get; }
+            public int Weight { get; init; }
+            public override int Compute(int available, int contentSize, int remaining) { }
+        }
+        public sealed class Fixed : Termina.Layout.SizeConstraint, System.IEquatable<Termina.Layout.SizeConstraint.Fixed>
+        {
+            public Fixed(int Value) { }
+            public int Value { get; init; }
+            public override int Compute(int available, int contentSize, int remaining) { }
+        }
+        public sealed class Percent : Termina.Layout.SizeConstraint, System.IEquatable<Termina.Layout.SizeConstraint.Percent>
+        {
+            public Percent(int Value) { }
+            public int Value { get; init; }
+            public override int Compute(int available, int contentSize, int remaining) { }
+        }
+    }
+    public sealed class SpinnerNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IAnimatedNode, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        public SpinnerNode(Termina.Layout.SpinnerStyle style = 0, int intervalMs = 80) { }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public bool IsAnimating { get; }
+        public string? Label { get; }
+        public Termina.Terminal.Color? LabelColor { get; }
+        public Termina.Terminal.Color? SpinnerColor { get; }
+        public override void Dispose() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public override void OnDeactivate() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public override void SetRuntimeContext(Termina.Layout.LayoutRuntimeContext context) { }
+        public void Start() { }
+        public void Stop() { }
+        public Termina.Layout.SpinnerNode WithLabel(string label) { }
+        public Termina.Layout.SpinnerNode WithLabelColor(Termina.Terminal.Color color) { }
+        public Termina.Layout.SpinnerNode WithSpinnerColor(Termina.Terminal.Color color) { }
+    }
+    public enum SpinnerStyle
+    {
+        Dots = 0,
+        Line = 1,
+        Arrow = 2,
+        Bounce = 3,
+        Box = 4,
+        Circle = 5,
+    }
+    public sealed class StackLayout : Termina.Layout.ContainerNode
+    {
+        public StackLayout(System.Collections.Generic.IEnumerable<Termina.Layout.ILayoutNode> children) { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.StackLayout WithChild(Termina.Layout.ILayoutNode child) { }
+    }
+    public sealed class StreamingTextNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode, Termina.Layout.IScrollable
+    {
+        public StreamingTextNode(Termina.Components.Streaming.IStreamingTextBuffer buffer) { }
+        public Termina.Terminal.Color? Background { get; }
+        public Termina.Components.Streaming.IStreamingTextBuffer Buffer { get; }
+        public bool CanScrollDown { get; }
+        public bool CanScrollUp { get; }
+        public R3.Observable<R3.Unit> ContentChanged { get; }
+        public Termina.Terminal.Color? Foreground { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public string? Prefix { get; set; }
+        public Termina.Terminal.Color? PrefixColor { get; set; }
+        public void Append(Termina.Components.Streaming.StyledSegment segment) { }
+        public void Append(string text) { }
+        public void Append(string text, Termina.Terminal.Color? foreground = default, Termina.Terminal.Color? background = default, Termina.Terminal.TextDecoration decoration = 0) { }
+        public void AppendLine(string line) { }
+        public void AppendLine(string line, Termina.Terminal.Color? foreground = default, Termina.Terminal.Color? background = default, Termina.Terminal.TextDecoration decoration = 0) { }
+        public void AppendTracked(Termina.Layout.SegmentId id, Termina.Components.Streaming.ITextSegment segment) { }
+        public void Clear() { }
+        public override void Dispose() { }
+        public bool HandleInput(System.ConsoleKeyInfo key, int viewportHeight, int viewportWidth) { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public bool Remove(Termina.Layout.SegmentId id) { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public bool Replace(Termina.Layout.SegmentId id, Termina.Components.Streaming.ITextSegment newSegment, bool keepTracked = true) { }
+        public void ScrollDown(int lines = 1) { }
+        public void ScrollToBottom() { }
+        public void ScrollUp(int lines = 1, int viewportWidth = 80) { }
+        public Termina.Layout.StreamingTextNode WithBackground(Termina.Terminal.Color color) { }
+        public Termina.Layout.StreamingTextNode WithForeground(Termina.Terminal.Color color) { }
+        public Termina.Layout.StreamingTextNode WithPrefix(string prefix, Termina.Terminal.Color? color = default) { }
+        public Termina.Layout.StreamingTextNode WithScrollbar() { }
+        public Termina.Layout.StreamingTextNode WithScrollbar(Termina.Layout.ScrollbarOptions options) { }
+        public static Termina.Layout.StreamingTextNode Create() { }
+        public static Termina.Layout.StreamingTextNode CreateWindowed(int windowSize = 100) { }
+    }
+    public enum TextAlignment
+    {
+        Left = 0,
+        Center = 1,
+        Right = 2,
+    }
+    public sealed class TextAreaNode : Termina.Layout.TextInputBaseNode
+    {
+        public TextAreaNode(int cursorBlinkMs = 530) { }
+        public override void Clear() { }
+        protected override bool HandleDownArrow() { }
+        protected override bool HandleEnd(System.ConsoleModifiers modifiers) { }
+        protected override bool HandleEnter(System.ConsoleModifiers modifiers) { }
+        protected override bool HandleHome(System.ConsoleModifiers modifiers) { }
+        protected override bool HandleUpArrow() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        protected override void OnTextBufferChanged() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.TextAreaNode WithBackground(Termina.Terminal.Color color) { }
+        public Termina.Layout.TextAreaNode WithForeground(Termina.Terminal.Color color) { }
+        public Termina.Layout.TextAreaNode WithHistory(int maxEntries = 0) { }
+        public Termina.Layout.TextAreaNode WithMaxHeight(int rows) { }
+        public Termina.Layout.TextAreaNode WithMaxLength(int length) { }
+        public Termina.Layout.TextAreaNode WithMaxLines(int lines) { }
+        public Termina.Layout.TextAreaNode WithNewlineModifier(System.ConsoleModifiers mod) { }
+        public Termina.Layout.TextAreaNode WithPlaceholder(string placeholder) { }
+        public Termina.Layout.TextAreaNode WithWordWrap(bool enabled) { }
+    }
+    public abstract class TextInputBaseNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Input.IPasteReceiver, Termina.Layout.IAnimatedNode, Termina.Layout.IFocusable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    {
+        protected readonly System.Collections.Generic.List<Termina.Layout.TextInputBaseNode.CommittedSegment> _committedSegments;
+        protected readonly int _cursorBlinkMs;
+        protected int _cursorPosition;
+        protected System.IDisposable? _cursorTimerSubscription;
+        protected bool _cursorVisible;
+        protected bool _disposed;
+        protected bool _hasFocus;
+        protected System.Collections.Generic.List<string>? _history;
+        protected int _historyIndex;
+        protected readonly R3.Subject<R3.Unit> _invalidated;
+        protected int _maxHistoryEntries;
+        protected string? _savedInput;
+        protected int _selectionStart;
+        protected readonly R3.Subject<string> _submitted;
+        protected string _text;
+        protected readonly R3.Subject<string> _textChanged;
+        protected TextInputBaseNode(int cursorBlinkMs = 530) { }
+        public Termina.Terminal.Color? Background { get; set; }
+        public bool CanFocus { get; }
+        protected string CommittedDisplayPrefix { get; }
+        public Termina.Terminal.Color CursorColor { get; set; }
+        public int CursorPosition { get; set; }
+        public int FocusPriority { get; }
+        public Termina.Terminal.Color? Foreground { get; set; }
+        public bool HasFocus { get; }
+        public bool HasSelection { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public bool IsAnimating { get; protected set; }
+        public bool IsPassword { get; set; }
+        public int MaxLength { get; set; }
+        public char PasswordChar { get; set; }
+        public string? Placeholder { get; set; }
+        public Termina.Terminal.Color PlaceholderColor { get; set; }
+        public string SelectedText { get; }
+        public Termina.Terminal.Color SelectionColor { get; set; }
+        protected string SubmitContent { get; }
+        public R3.Observable<string> Submitted { get; }
+        public virtual string Text { get; set; }
+        public R3.Observable<string> TextChanged { get; }
+        public void AddHistory(string entry) { }
+        protected void ApplyHistoryEntry(string entry) { }
+        public bool CancelHistoryNavigation() { }
+        public virtual void Clear() { }
+        protected void DeleteSelection() { }
+        public override void Dispose() { }
+        protected void EnableHistory(int maxEntries) { }
+        protected int FindWordBoundary(int from, int direction) { }
+        protected bool HandleBackspace(System.ConsoleModifiers modifiers) { }
+        protected bool HandleCharacter(char c, System.ConsoleModifiers modifiers) { }
+        protected bool HandleDelete(System.ConsoleModifiers modifiers) { }
+        protected virtual bool HandleDownArrow() { }
+        protected virtual bool HandleEnd(System.ConsoleModifiers modifiers) { }
+        protected virtual bool HandleEnter(System.ConsoleModifiers modifiers) { }
+        protected bool HandleEscape() { }
+        protected virtual bool HandleHome(System.ConsoleModifiers modifiers) { }
+        public bool HandleInput(System.ConsoleKeyInfo key) { }
+        protected bool HandleLeftArrow(System.ConsoleModifiers modifiers) { }
+        public virtual bool HandlePaste(Termina.Input.PasteEvent paste) { }
+        protected bool HandleRightArrow(System.ConsoleModifiers modifiers) { }
+        protected virtual bool HandleUpArrow() { }
+        public void MoveCursorToEnd() { }
+        public override void OnActivate() { }
+        public void OnBlurred() { }
+        public override void OnDeactivate() { }
+        public void OnFocused() { }
+        protected virtual void OnTextBufferChanged() { }
+        protected void PerformSubmit() { }
+        protected void SelectAll() { }
+        public override void SetRuntimeContext(Termina.Layout.LayoutRuntimeContext context) { }
+        public void Start() { }
+        public void Stop() { }
+        protected sealed class CommittedSegment : System.IEquatable<Termina.Layout.TextInputBaseNode.CommittedSegment>
+        {
+            public CommittedSegment(string DisplayText, string SubmitText, Termina.Layout.TextInputBaseNode.SegmentKind Kind) { }
+            public string DisplayText { get; init; }
+            public Termina.Layout.TextInputBaseNode.SegmentKind Kind { get; init; }
+            public string SubmitText { get; init; }
+        }
+        protected enum SegmentKind
+        {
+            Typed = 0,
+            Pasted = 1,
+        }
+    }
+    public sealed class TextInputNode : Termina.Layout.TextInputBaseNode
+    {
+        public TextInputNode(int cursorBlinkMs = 530) { }
+        public Termina.Layout.TextInputNode AsPassword(char maskChar = •) { }
+        public override void Clear() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        protected override void OnTextBufferChanged() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.TextInputNode WithBackground(Termina.Terminal.Color color) { }
+        public Termina.Layout.TextInputNode WithForeground(Termina.Terminal.Color color) { }
+        public Termina.Layout.TextInputNode WithHistory(int maxEntries = 0) { }
+        public Termina.Layout.TextInputNode WithMaxLength(int length) { }
+        public Termina.Layout.TextInputNode WithPlaceholder(string placeholder) { }
+    }
+    public sealed class TextNode : Termina.Layout.LayoutNode
+    {
+        public TextNode(string content) { }
+        public Termina.Layout.TextAlignment Alignment { get; }
+        public Termina.Terminal.Color? Background { get; }
+        public string Content { get; }
+        public Termina.Terminal.Color? Foreground { get; }
+        public bool IsBold { get; }
+        public bool IsItalic { get; }
+        public bool IsUnderline { get; }
+        public bool WordWrap { get; }
+        public Termina.Layout.TextNode Align(Termina.Layout.TextAlignment alignment) { }
+        public Termina.Layout.TextNode AlignCenter() { }
+        public Termina.Layout.TextNode AlignRight() { }
+        public Termina.Layout.TextNode Bold() { }
+        public Termina.Layout.TextNode Italic() { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public Termina.Layout.TextNode NoWrap() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.TextNode Underline() { }
+        public Termina.Layout.TextNode WithBackground(Termina.Terminal.Color color) { }
+        public Termina.Layout.TextNode WithForeground(Termina.Terminal.Color color) { }
+    }
+    public sealed class VerticalLayout : Termina.Layout.ContainerNode
+    {
+        public VerticalLayout(System.Collections.Generic.IEnumerable<Termina.Layout.ILayoutNode> children) { }
+        public int Spacing { get; }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.VerticalLayout WithChild(Termina.Layout.ILayoutNode child) { }
+        public Termina.Layout.VerticalLayout WithSpacing(int spacing) { }
+    }
+    public static class When
+    {
+        public static Termina.Layout.ConditionalNode False(R3.Observable<bool> condition, Termina.Layout.ILayoutNode content) { }
+        public static Termina.Layout.ConditionalNode True(R3.Observable<bool> condition, Termina.Layout.ILayoutNode content) { }
+        public static Termina.Layout.ConditionalNode TrueElse(R3.Observable<bool> condition, Termina.Layout.ILayoutNode thenContent, Termina.Layout.ILayoutNode elseContent) { }
+    }
+    public sealed class WizardBeforeAdvanceArgs<TStep>
+        where TStep :  struct, System.Enum
+    {
+        public WizardBeforeAdvanceArgs(TStep currentStep, TStep nextStep) { }
+        public bool Cancel { get; set; }
+        public TStep CurrentStep { get; }
+        public TStep NextStep { get; }
+    }
+    public sealed class WizardNode<TStep> : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IFocusable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+        where TStep :  struct, System.Enum
+    {
+        public WizardNode() { }
+        public R3.Observable<Termina.Layout.WizardBeforeAdvanceArgs<TStep>> BeforeAdvance { get; }
+        public bool CanFocus { get; }
+        public R3.Observable<R3.Unit> Completed { get; }
+        public TStep CurrentStep { get; }
+        public int CurrentSubStep { get; }
+        public int FocusPriority { get; }
+        public bool HasFocus { get; }
+        public R3.Observable<R3.Unit> Invalidated { get; }
+        public R3.Observable<TStep> StepChanged { get; }
+        public int StepCount { get; }
+        public bool AdvanceSubStep() { }
+        public override void Dispose() { }
+        public bool GoToStep(TStep step) { }
+        public bool HandleInput(System.ConsoleKeyInfo key) { }
+        public override Termina.Layout.Size Measure(Termina.Layout.Size available) { }
+        public override void OnActivate() { }
+        public void OnBlurred() { }
+        public override void OnDeactivate() { }
+        public void OnFocused() { }
+        public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public bool TryAdvance() { }
+        public bool TryGoBack() { }
+        public Termina.Layout.WizardNode<TStep> WithBorder(Termina.Rendering.BorderStyle style = 1, Termina.Terminal.Color? color = default) { }
+        public Termina.Layout.WizardNode<TStep> WithProgressStyle(Termina.Layout.WizardProgressStyle style) { }
+        public Termina.Layout.WizardNode<TStep> WithStep(TStep step, string displayName, System.Func<Termina.Layout.ILayoutNode> contentFactory, string? helpText = null, int subSteps = 1) { }
+        public Termina.Layout.WizardNode<TStep> WithTitle(string title) { }
+    }
+    public enum WizardProgressStyle
+    {
+        BlockBar = 0,
+        Arrow = 1,
+        Dots = 2,
+        None = 3,
+    }
+    public sealed class WizardStepConfig<TStep>
+        where TStep :  struct, System.Enum
+    {
+        public WizardStepConfig(TStep step, string displayName, System.Func<Termina.Layout.ILayoutNode> contentFactory, string? helpText = null, int subStepCount = 1) { }
+        public System.Func<Termina.Layout.ILayoutNode> ContentFactory { get; }
+        public string DisplayName { get; }
+        public string? HelpText { get; }
+        public TStep Step { get; }
+        public int SubStepCount { get; }
+    }
+}
+namespace Termina.Navigation
+{
+    public sealed class NavigationBackRequested : System.IEquatable<Termina.Navigation.NavigationBackRequested>, Termina.IUIEvent
+    {
+        public NavigationBackRequested() { }
+        public System.DateTime Timestamp { get; }
+    }
+    public sealed class NavigationRequested : System.IEquatable<Termina.Navigation.NavigationRequested>, Termina.IUIEvent
+    {
+        public NavigationRequested(string PageKey) { }
+        public string PageKey { get; init; }
+        public System.DateTime Timestamp { get; }
+    }
+    public sealed class ShutdownRequested : System.IEquatable<Termina.Navigation.ShutdownRequested>, Termina.IUIEvent
+    {
+        public ShutdownRequested() { }
+        public System.DateTime Timestamp { get; }
+    }
+}
+namespace Termina.Notifications
+{
+    public interface IToastService
+    {
+        R3.Observable<Termina.Notifications.ToastMessage?> CurrentToast { get; }
+        void Show(string message, Termina.Notifications.ToastOptions? options = null);
+    }
+    public sealed class ToastMessage : System.IEquatable<Termina.Notifications.ToastMessage>
+    {
+        public ToastMessage(string Message, Termina.Notifications.ToastPosition Position = 0, Termina.Terminal.Color? Color = default, string? Icon = null) { }
+        public Termina.Terminal.Color? Color { get; init; }
+        public string? Icon { get; init; }
+        public string Message { get; init; }
+        public Termina.Notifications.ToastPosition Position { get; init; }
+    }
+    public sealed class ToastOptions : System.IEquatable<Termina.Notifications.ToastOptions>
+    {
+        public ToastOptions(System.TimeSpan? Duration = default, Termina.Notifications.ToastPosition Position = 0, Termina.Terminal.Color? Color = default, string? Icon = null) { }
+        public Termina.Terminal.Color? Color { get; init; }
+        public System.TimeSpan? Duration { get; init; }
+        public string? Icon { get; init; }
+        public Termina.Notifications.ToastPosition Position { get; init; }
+    }
+    public enum ToastPosition
+    {
+        BottomRight = 0,
+        BottomCenter = 1,
+        BottomLeft = 2,
+        TopRight = 3,
+        TopCenter = 4,
+        TopLeft = 5,
+    }
+    public sealed class ToastService : System.IDisposable, Termina.Notifications.IToastService
+    {
+        public ToastService(System.TimeProvider? timeProvider = null) { }
+        public R3.Observable<Termina.Notifications.ToastMessage?> CurrentToast { get; }
+        public void Dispose() { }
+        public void Show(string message, Termina.Notifications.ToastOptions? options = null) { }
+    }
+}
+namespace Termina.Pages
+{
+    public interface IPage
+    {
+        Termina.Layout.ILayoutNode BuildLayout();
+        void OnNavigatedTo();
+        void OnNavigatingFrom();
+    }
+    public enum NavigationBehavior
+    {
+        ResetOnNavigation = 0,
+        PreserveState = 1,
+    }
+}
+namespace Termina.Platform
+{
+    public readonly struct ConsoleKeyEvent : System.IEquatable<Termina.Platform.ConsoleKeyEvent>, Termina.Platform.IConsoleInputEvent
+    {
+        public ConsoleKeyEvent(System.ConsoleKeyInfo KeyInfo) { }
+        public System.ConsoleKeyInfo KeyInfo { get; init; }
+    }
+    public readonly struct ConsoleMouseEvent : System.IEquatable<Termina.Platform.ConsoleMouseEvent>, Termina.Platform.IConsoleInputEvent
+    {
+        public ConsoleMouseEvent(int X, int Y, Termina.Platform.MouseButton Button, Termina.Platform.MouseEventType EventType) { }
+        public Termina.Platform.MouseButton Button { get; init; }
+        public Termina.Platform.MouseEventType EventType { get; init; }
+        public int X { get; init; }
+        public int Y { get; init; }
+    }
+    public readonly struct ConsoleResizeEvent : System.IEquatable<Termina.Platform.ConsoleResizeEvent>, Termina.Platform.IConsoleInputEvent
+    {
+        public ConsoleResizeEvent(int Width, int Height) { }
+        public int Height { get; init; }
+        public int Width { get; init; }
+    }
+    public sealed class FallbackConsole : System.IDisposable, Termina.Platform.IPlatformConsole
+    {
+        public FallbackConsole() { }
+        public R3.Observable<Termina.Platform.ConsoleResizeEvent> Resized { get; }
+        public bool SupportsEventDrivenInput { get; }
+        public void Dispose() { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Width",
+                "Height"})]
+        public System.ValueTuple<int, int> GetSize() { }
+        public void Initialize() { }
+        public System.Threading.Tasks.ValueTask<Termina.Platform.IConsoleInputEvent?> ReadInputAsync(System.Threading.CancellationToken cancellationToken) { }
+        public void Restore() { }
+    }
+    public interface IConsoleInputEvent { }
+    public interface IPlatformConsole : System.IDisposable
+    {
+        Termina.Platform.TerminalCapabilities Capabilities { get; }
+        R3.Observable<Termina.Platform.ConsoleResizeEvent> Resized { get; }
+        bool SupportsEventDrivenInput { get; }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Width",
+                "Height"})]
+        System.ValueTuple<int, int> GetSize();
+        void Initialize();
+        System.Threading.Tasks.ValueTask<Termina.Platform.IConsoleInputEvent?> ReadInputAsync(System.Threading.CancellationToken cancellationToken);
+        void Restore();
+    }
+    public enum MouseButton
+    {
+        None = 0,
+        Left = 1,
+        Middle = 2,
+        Right = 3,
+        ScrollUp = 4,
+        ScrollDown = 5,
+    }
+    public enum MouseEventType
+    {
+        Press = 0,
+        Release = 1,
+        Move = 2,
+        Scroll = 3,
+    }
+    public static class PlatformConsoleFactory
+    {
+        public static Termina.Platform.IPlatformConsole Create(Termina.Hosting.TerminaRuntimeOptions runtimeOptions) { }
+        public static Termina.Platform.IPlatformConsole CreateFallback() { }
+    }
+    public readonly struct PlatformInputConfiguration : System.IEquatable<Termina.Platform.PlatformInputConfiguration>
+    {
+        public PlatformInputConfiguration(bool RawInputActive, bool KittyReportAllKeysVisible) { }
+        public bool KittyReportAllKeysVisible { get; init; }
+        public bool RawInputActive { get; init; }
+    }
+    public readonly struct TerminalCapabilities : System.IEquatable<Termina.Platform.TerminalCapabilities>
+    {
+        public TerminalCapabilities(bool RawInputActive) { }
+        public bool PreservesKeyModifiers { get; init; }
+        public bool RawInputActive { get; init; }
+    }
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    [System.Runtime.Versioning.SupportedOSPlatform("macos")]
+    public sealed class UnixConsole : System.IDisposable, Termina.Platform.IPlatformConsole
+    {
+        public UnixConsole() { }
+        public Termina.Platform.TerminalCapabilities Capabilities { get; }
+        public R3.Observable<Termina.Platform.ConsoleResizeEvent> Resized { get; }
+        public bool SupportsEventDrivenInput { get; }
+        public void Dispose() { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Width",
+                "Height"})]
+        public System.ValueTuple<int, int> GetSize() { }
+        public void Initialize() { }
+        public System.Threading.Tasks.ValueTask<Termina.Platform.IConsoleInputEvent?> ReadInputAsync(System.Threading.CancellationToken cancellationToken) { }
+        public void Restore() { }
+        public static bool IsInteractiveStdin() { }
+    }
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public sealed class WindowsConsole : System.IDisposable, Termina.Platform.IPlatformConsole
+    {
+        public WindowsConsole(bool rawVtMode = false) { }
+        public Termina.Platform.TerminalCapabilities Capabilities { get; }
+        public R3.Observable<Termina.Platform.ConsoleResizeEvent> Resized { get; }
+        public bool SupportsEventDrivenInput { get; }
+        public void Dispose() { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Width",
+                "Height"})]
+        public System.ValueTuple<int, int> GetSize() { }
+        public void Initialize() { }
+        public System.Threading.Tasks.ValueTask<Termina.Platform.IConsoleInputEvent?> ReadInputAsync(System.Threading.CancellationToken cancellationToken) { }
+        public void Restore() { }
+        public static bool IsConsoleAvailable() { }
+    }
+}
+namespace Termina.Reactive
+{
+    public abstract class ReactivePage<TViewModel> : System.IDisposable, Termina.Pages.IPage
+        where TViewModel : Termina.Reactive.ReactiveViewModel
+    {
+        protected ReactivePage() { }
+        protected Termina.Input.IFocusManager Focus { get; }
+        protected Termina.Input.FocusPolicy FocusPolicy { get; set; }
+        protected Termina.Input.PageKeyBindings KeyBindings { get; }
+        protected R3.FrameProvider RenderFrameProvider { get; }
+        protected R3.CompositeDisposable Subscriptions { get; }
+        protected TViewModel ViewModel { get; }
+        public abstract Termina.Layout.ILayoutNode BuildLayout();
+        protected void CycleFocusBackward() { }
+        protected void CycleFocusForward() { }
+        public virtual void Dispose() { }
+        public virtual bool HandlePageInput(System.ConsoleKeyInfo keyInfo) { }
+        protected void InvalidateLayout() { }
+        protected System.Threading.Tasks.Task InvokeAsync(System.Action action, System.Threading.CancellationToken cancellationToken = default) { }
+        protected void Navigate(string route) { }
+        protected void NavigateWithParams(string routeTemplate, object? parameters) { }
+        protected virtual void OnBound() { }
+        public virtual void OnNavigatedTo() { }
+        public virtual void OnNavigatingFrom() { }
+        protected void Post(System.Action action) { }
+        protected void Shutdown() { }
+    }
+    public abstract class ReactiveViewModel : System.IDisposable
+    {
+        protected ReactiveViewModel() { }
+        public R3.Observable<Termina.Input.IInputEvent> Input { get; }
+        protected System.Action<string> Navigate { get; }
+        protected System.Action<string, object?> NavigateWithParams { get; }
+        public R3.FrameProvider RenderFrameProvider { get; }
+        public System.Action RequestRedraw { get; }
+        protected System.Action Shutdown { get; }
+        protected R3.CompositeDisposable Subscriptions { get; }
+        public System.TimeProvider TimeProvider { get; }
+        public virtual void Dispose() { }
+        public System.Threading.Tasks.Task InvokeAsync(System.Action action, System.Threading.CancellationToken cancellationToken = default) { }
+        public virtual void OnActivated() { }
+        public virtual void OnDeactivating() { }
+        public void Post(System.Action action) { }
+        public virtual void RequestShutdown() { }
+    }
+    public static class RxExtensions
+    {
+        public static T DisposeWith<T>(this T disposable, R3.CompositeDisposable composite)
+            where T : System.IDisposable { }
+    }
+    public sealed class TerminaRenderFrameProvider : R3.FrameProvider, System.IDisposable
+    {
+        public void Dispose() { }
+        public override long GetFrameCount() { }
+        public override void Register(R3.IFrameRunnerWorkItem callback) { }
+    }
+}
+namespace Termina.Rendering
+{
+    public enum BorderStyle
+    {
+        None = 0,
+        Single = 1,
+        Double = 2,
+        Rounded = 3,
+        Ascii = 4,
+    }
+    public interface IRenderContext
+    {
+        int Height { get; }
+        int Width { get; }
+        void ApplyStyle(Termina.Terminal.TextStyle style);
+        void Clear();
+        Termina.Rendering.IRenderContext CreateSubContext(Termina.Layout.Rect bounds);
+        void Fill(int x, int y, int width, int height, char c =  );
+        void ResetColors();
+        void SetBackground(Termina.Terminal.Color color);
+        void SetDecoration(Termina.Terminal.TextDecoration decoration);
+        void SetForeground(Termina.Terminal.Color color);
+        void WriteAt(int x, int y, char c);
+        void WriteAt(int x, int y, string text);
+    }
+    public interface IRenderable
+    {
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Width",
+                "Height"})]
+        System.ValueTuple<int, int> Measure(int availableWidth, int availableHeight);
+        void Render(Termina.Rendering.IRenderContext context);
+    }
+    public sealed class Panel : Termina.Rendering.IRenderable
+    {
+        public Panel() { }
+        public Termina.Terminal.Color Background { get; set; }
+        public Termina.Rendering.BorderStyle Border { get; set; }
+        public Termina.Terminal.Color BorderColor { get; set; }
+        public Termina.Rendering.IRenderable? Content { get; set; }
+        public string Title { get; set; }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Width",
+                "Height"})]
+        public System.ValueTuple<int, int> Measure(int availableWidth, int availableHeight) { }
+        public void Render(Termina.Rendering.IRenderContext context) { }
+    }
+    public sealed class RegionRenderContext : Termina.Rendering.IRenderContext
+    {
+        public RegionRenderContext(Termina.Terminal.IAnsiTerminal terminal, int offsetX, int offsetY, int width, int height) { }
+        public int Height { get; }
+        public int Width { get; }
+        public void ApplyStyle(Termina.Terminal.TextStyle style) { }
+        public void Clear() { }
+        public Termina.Rendering.IRenderContext CreateSubContext(Termina.Layout.Rect bounds) { }
+        public void Fill(int x, int y, int width, int height, char c =  ) { }
+        public void ResetColors() { }
+        public void SetBackground(Termina.Terminal.Color color) { }
+        public void SetDecoration(Termina.Terminal.TextDecoration decoration) { }
+        public void SetForeground(Termina.Terminal.Color color) { }
+        public void WriteAt(int x, int y, char c) { }
+        public void WriteAt(int x, int y, string text) { }
+    }
+    public sealed class ScrollableContent : System.IDisposable, Termina.Rendering.IRenderable
+    {
+        public ScrollableContent() { }
+        public Termina.Terminal.Color Background { get; set; }
+        public bool CanScrollDown { get; }
+        public bool CanScrollUp { get; }
+        public Termina.Rendering.IRenderable? Content { get; set; }
+        public int ContentHeight { get; }
+        public R3.Observable<R3.Unit> Dirty { get; }
+        public Termina.Terminal.Color Foreground { get; set; }
+        public int MaxScroll { get; }
+        public int ScrollOffset { get; set; }
+        public Termina.Terminal.Color ScrollbarThumbColor { get; set; }
+        public Termina.Terminal.Color ScrollbarTrackColor { get; set; }
+        public bool ShowScrollbar { get; set; }
+        public void Dispose() { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Width",
+                "Height"})]
+        public System.ValueTuple<int, int> Measure(int availableWidth, int availableHeight) { }
+        public void PageDown() { }
+        public void PageUp() { }
+        public void Render(Termina.Rendering.IRenderContext context) { }
+        public void ScrollDown() { }
+        public void ScrollTo(int offset) { }
+        public void ScrollToBottom() { }
+        public void ScrollToTop() { }
+        public void ScrollUp() { }
+        public void SetContent(string[] lines) { }
+        public void SetViewportHeight(int height) { }
+    }
+    public sealed class Text : Termina.Rendering.IRenderable
+    {
+        public Text(string content) { }
+        public Termina.Terminal.Color Background { get; init; }
+        public string Content { get; set; }
+        public Termina.Terminal.Color Foreground { get; init; }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Width",
+                "Height"})]
+        public System.ValueTuple<int, int> Measure(int availableWidth, int availableHeight) { }
+        public void Render(Termina.Rendering.IRenderContext context) { }
+        public static Termina.Rendering.Text Colored(string content, Termina.Terminal.Color foreground) { }
+        public static Termina.Rendering.Text Colored(string content, Termina.Terminal.Color foreground, Termina.Terminal.Color background) { }
+    }
+    public sealed class TextInput : System.IDisposable, Termina.Rendering.IRenderable
+    {
+        public TextInput(System.TimeProvider? timeProvider = null) { }
+        public Termina.Terminal.Color Background { get; set; }
+        public int BlinkIntervalMs { get; set; }
+        public bool CursorBlink { get; set; }
+        public int CursorPosition { get; set; }
+        public R3.Observable<R3.Unit> Dirty { get; }
+        public Termina.Terminal.Color FocusedForeground { get; set; }
+        public Termina.Terminal.Color Foreground { get; set; }
+        public bool IsFocused { get; set; }
+        public string Label { get; set; }
+        public string Placeholder { get; set; }
+        public Termina.Terminal.Color PlaceholderForeground { get; set; }
+        public R3.Observable<string> Submitted { get; }
+        public string Text { get; set; }
+        public void Clear() { }
+        public void Dispose() { }
+        public bool HandleKey(System.ConsoleKeyInfo key) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Width",
+                "Height"})]
+        public System.ValueTuple<int, int> Measure(int availableWidth, int availableHeight) { }
+        public void Render(Termina.Rendering.IRenderContext context) { }
+    }
+}
+namespace Termina.Routing
+{
+    [System.AttributeUsage(System.AttributeTargets.Field)]
+    public sealed class FromRouteAttribute : System.Attribute
+    {
+        public FromRouteAttribute() { }
+        public string? Name { get; set; }
+    }
+    public interface IRouteParameterReceiver
+    {
+        void SetRouteParameters(System.Collections.Generic.IReadOnlyDictionary<string, object> parameters);
+    }
+    public static class RouteConstraints
+    {
+        public static readonly System.Collections.Generic.IReadOnlySet<string> ValidConstraints;
+        public static System.Type GetConstraintType(string? constraint) { }
+        public static bool IsValidConstraint(string constraint) { }
+        public static bool TryParse(string value, string? constraint, out object? result) { }
+    }
+    public sealed class RouteMatcher
+    {
+        public RouteMatcher() { }
+        public void AddRoute(Termina.Routing.RouteTemplate template, string pageKey) { }
+        public bool TryMatch(string path, out string? pageKey, out System.Collections.Generic.IReadOnlyDictionary<string, object>? parameters) { }
+        public static string BuildPath(Termina.Routing.RouteTemplate template, object? values) { }
+        public static string BuildPath(string template, object? values) { }
+    }
+    public static class RouteParser
+    {
+        public static Termina.Routing.RouteTemplate Parse(string template) { }
+        public static bool TryParse(string template, out Termina.Routing.RouteTemplate? result) { }
+    }
+    public readonly struct RouteSegment : System.IEquatable<Termina.Routing.RouteSegment>
+    {
+        public string? Constraint { get; }
+        public bool IsParameter { get; }
+        public string Value { get; }
+        public bool Equals(Termina.Routing.RouteSegment other) { }
+        public override bool Equals(object? obj) { }
+        public override int GetHashCode() { }
+        public override string ToString() { }
+        public static Termina.Routing.RouteSegment Literal(string value) { }
+        public static Termina.Routing.RouteSegment Parameter(string name, string? constraint = null) { }
+        public static bool operator !=(Termina.Routing.RouteSegment left, Termina.Routing.RouteSegment right) { }
+        public static bool operator ==(Termina.Routing.RouteSegment left, Termina.Routing.RouteSegment right) { }
+    }
+    public sealed class RouteTemplate
+    {
+        public bool HasParameters { get; }
+        public System.Collections.Generic.IReadOnlyList<string> ParameterNames { get; }
+        public System.Collections.Generic.IReadOnlyList<Termina.Routing.RouteSegment> Segments { get; }
+        public string Template { get; }
+        public override string ToString() { }
+    }
+}
+namespace Termina.Terminal
+{
+    public static class AnsiCodes
+    {
+        public const string BackgroundDefault = "[49m";
+        public const string Blink = "[5m";
+        public const string Bold = "[1m";
+        public const string ClearLine = "[2K";
+        public const string ClearLineToBeginning = "[1K";
+        public const string ClearLineToEnd = "[0K";
+        public const string ClearScreen = "[2J";
+        public const string ClearToBeginning = "[1J";
+        public const string ClearToEnd = "[0J";
+        public const string Csi = "[";
+        public const string Dim = "[2m";
+        public const string DisableAlternateScroll = "[?1007l";
+        public const string DisableBracketedPaste = "[?2004l";
+        public const string DisableCursorKeyApplicationMode = "[?1l";
+        public const string DisableKittyKeyboard = "[<u";
+        public const string DisableMouseNormal = "[?1000l";
+        public const string DisableMouseSgr = "[?1006l";
+        public const string DisableMouseX10 = "[?9l";
+        public const string EnableAlternateScroll = "[?1007h";
+        public const string EnableBracketedPaste = "[?2004h";
+        public const string EnableCursorKeyApplicationMode = "[?1h";
+        public const string EnableMouseNormal = "[?1000h";
+        public const string EnableMouseSgr = "[?1006h";
+        public const string EnableMouseX10 = "[?9h";
+        public const string EnterAlternateScreen = "[?1049h";
+        public const char Escape = '';
+        public const string ExitAlternateScreen = "[?1049l";
+        public const string ForegroundDefault = "[39m";
+        public const string HideCursor = "[?25l";
+        public const string Italic = "[3m";
+        public const string QueryCursorPosition = "[6n";
+        public const string QueryTerminalSize = "[18t";
+        public const string Reset = "[0m";
+        public const string ResetBlink = "[25m";
+        public const string ResetBold = "[22m";
+        public const string ResetItalic = "[23m";
+        public const string ResetReverse = "[27m";
+        public const string ResetStrikethrough = "[29m";
+        public const string ResetUnderline = "[24m";
+        public const string RestoreCursor = "[u";
+        public const string Reverse = "[7m";
+        public const string SaveCursor = "[s";
+        public const string ShowCursor = "[?25h";
+        public const string Strikethrough = "[9m";
+        public const string Underline = "[4m";
+        public static string Background256(byte color) { }
+        public static string BackgroundRgb(byte r, byte g, byte b) { }
+        public static string EnableKittyKeyboard(int flags) { }
+        public static string Foreground256(byte color) { }
+        public static string ForegroundRgb(byte r, byte g, byte b) { }
+        public static string MoveDown(int n = 1) { }
+        public static string MoveLeft(int n = 1) { }
+        public static string MoveRight(int n = 1) { }
+        public static string MoveTo(int row, int col) { }
+        public static string MoveUp(int n = 1) { }
+        public static string Osc52Clipboard(string text) { }
+        public static string Osc52Clipboard(string text, bool useStringTerminator) { }
+        public static string TmuxPassthrough(string seq) { }
+    }
+    public sealed class AnsiTerminal : System.IDisposable, Termina.Terminal.IAnsiTerminal, Termina.Terminal.IInlineTerminalControl
+    {
+        public AnsiTerminal(bool useAlternateScreen = true) { }
+        public int Height { get; }
+        public int Width { get; }
+        public void ClearRegion(int x, int y, int width, int height) { }
+        public void ClearScreen() { }
+        public void CopyToClipboard(string text) { }
+        public void DisableMouse() { }
+        public void DisableWheelScroll() { }
+        public void Dispose() { }
+        public void EnableMouse() { }
+        public void EnableWheelScroll() { }
+        public void EnterAlternateScreen() { }
+        public void EraseLine() { }
+        public void ExitAlternateScreen() { }
+        public void Flush() { }
+        public void MoveCursorDown(int rows) { }
+        public void MoveCursorToLineStart() { }
+        public void MoveCursorUp(int rows) { }
+        public void MoveTo(int x, int y) { }
+        public void ResetColors() { }
+        public void RestoreCursor() { }
+        public void SaveCursor() { }
+        public void SetBackground(Termina.Terminal.Color color) { }
+        public void SetCursorVisible(bool visible) { }
+        public void SetForeground(Termina.Terminal.Color color) { }
+        public void Write(char c) { }
+        public void Write(string text) { }
+        public void WriteLineBreak() { }
+    }
+    public readonly struct Color : System.IEquatable<Termina.Terminal.Color>
+    {
+        public byte B { get; }
+        public byte G { get; }
+        public byte Index { get; }
+        public Termina.Terminal.ColorMode Mode { get; }
+        public byte R { get; }
+        public static Termina.Terminal.Color Black { get; }
+        public static Termina.Terminal.Color Blue { get; }
+        public static Termina.Terminal.Color BrightBlack { get; }
+        public static Termina.Terminal.Color BrightBlue { get; }
+        public static Termina.Terminal.Color BrightCyan { get; }
+        public static Termina.Terminal.Color BrightGreen { get; }
+        public static Termina.Terminal.Color BrightMagenta { get; }
+        public static Termina.Terminal.Color BrightRed { get; }
+        public static Termina.Terminal.Color BrightWhite { get; }
+        public static Termina.Terminal.Color BrightYellow { get; }
+        public static Termina.Terminal.Color Cyan { get; }
+        public static Termina.Terminal.Color DarkGray { get; }
+        public static Termina.Terminal.Color Default { get; }
+        public static Termina.Terminal.Color Gray { get; }
+        public static Termina.Terminal.Color Green { get; }
+        public static Termina.Terminal.Color LightGray { get; }
+        public static Termina.Terminal.Color Magenta { get; }
+        public static Termina.Terminal.Color Red { get; }
+        public static Termina.Terminal.Color White { get; }
+        public static Termina.Terminal.Color Yellow { get; }
+        public bool Equals(Termina.Terminal.Color other) { }
+        public override bool Equals(object? obj) { }
+        public override int GetHashCode() { }
+        public string ToBackgroundAnsi() { }
+        public string ToForegroundAnsi() { }
+        public override string ToString() { }
+        public static Termina.Terminal.Color FromHex(string hex) { }
+        public static Termina.Terminal.Color FromIndex(byte index) { }
+        public static Termina.Terminal.Color FromRgb(byte r, byte g, byte b) { }
+        public static Termina.Terminal.Color Lerp(Termina.Terminal.Color a, Termina.Terminal.Color b, float t) { }
+        public static bool operator !=(Termina.Terminal.Color left, Termina.Terminal.Color right) { }
+        public static bool operator ==(Termina.Terminal.Color left, Termina.Terminal.Color right) { }
+    }
+    public enum ColorMode
+    {
+        Default = 0,
+        Indexed = 1,
+        Rgb = 2,
+    }
+    public sealed class DiffingTerminal : System.IDisposable, Termina.Terminal.IAnsiTerminal
+    {
+        public DiffingTerminal(Termina.Terminal.IAnsiTerminal inner) { }
+        public int Height { get; }
+        public int Width { get; }
+        public void ClearRegion(int x, int y, int width, int height) { }
+        public void ClearScreen() { }
+        public void CopyToClipboard(string text) { }
+        public void DisableMouse() { }
+        public void DisableWheelScroll() { }
+        public void Dispose() { }
+        public void EnableMouse() { }
+        public void EnableWheelScroll() { }
+        public void EnterAlternateScreen() { }
+        public void ExitAlternateScreen() { }
+        public void Flush() { }
+        public void ForceFullRefresh() { }
+        public void MoveTo(int x, int y) { }
+        public void ResetColors() { }
+        public void RestoreCursor() { }
+        public void SaveCursor() { }
+        public void SetBackground(Termina.Terminal.Color color) { }
+        public void SetCursorVisible(bool visible) { }
+        public void SetDecoration(Termina.Terminal.TextDecoration decoration) { }
+        public void SetForeground(Termina.Terminal.Color color) { }
+        public void Write(char c) { }
+        public void Write(string text) { }
+    }
+    public readonly struct DisplayCell : System.IEquatable<Termina.Terminal.DisplayCell>
+    {
+        public DisplayCell(string Text, int StartIndex, int Length, int ColumnWidth) { }
+        public int ColumnWidth { get; init; }
+        public int Length { get; init; }
+        public int StartIndex { get; init; }
+        public string Text { get; init; }
+    }
+    public static class DisplayWidth
+    {
+        public static int ClampToTextElementBoundary(string text, int charIndex) { }
+        public static int CursorPositionToColumn(string text, int charIndex) { }
+        public static System.Collections.Generic.IEnumerable<Termina.Terminal.DisplayCell> EnumerateCells(string text) { }
+        public static int GetColumnCount(char c) { }
+        public static int GetColumnCount(string text) { }
+        public static int GetNextTextElementIndex(string text, int charIndex) { }
+        public static int GetPreviousTextElementIndex(string text, int charIndex) { }
+        public static int GetStringIndexForColumnCount(string text, int maxColumns) { }
+        public static string GetTextElementAt(string text, int charIndex) { }
+        public static string SanitizeTerminalText(string text) { }
+        public static string SliceByColumns(string text, int startColumn, int maxColumns) { }
+        public static string TruncateStartToColumns(string text, int maxColumns) { }
+        public static string TruncateToColumns(string text, int maxColumns) { }
+    }
+    public sealed class FrameBuffer
+    {
+        public FrameBuffer(int width, int height) { }
+        public int Height { get; }
+        public Termina.Terminal.TerminalCell& this[int x, int y] { get; }
+        public int Width { get; }
+        public void Clear() { }
+        public void CopyFrom(Termina.Terminal.FrameBuffer source) { }
+        public void Fill(int startX, int startY, int width, int height, Termina.Terminal.TerminalCell cell) { }
+        public string GetAllText() { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "X",
+                "Y"})]
+        public System.Collections.Generic.IEnumerable<System.ValueTuple<int, int>> GetChangedCells(Termina.Terminal.FrameBuffer other) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Y",
+                "StartX",
+                "Cells"})]
+        public System.Collections.Generic.IEnumerable<System.ValueTuple<int, int, Termina.Terminal.TerminalCell[]>> GetChangedRuns(Termina.Terminal.FrameBuffer other) { }
+        public string GetRowText(int y) { }
+        public Termina.Terminal.TerminalCell GetSafe(int x, int y) { }
+        public void Resize(int newWidth, int newHeight) { }
+        public bool TrySet(int x, int y, Termina.Terminal.TerminalCell cell) { }
+    }
+    public sealed class Gradient : System.IEquatable<Termina.Terminal.Gradient>
+    {
+        public Termina.Terminal.Color Sample(float t) { }
+        public static Termina.Terminal.Gradient Create() { }
+        public static Termina.Terminal.Gradient Create([System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "position",
+                "color"})] params System.ValueTuple<float, Termina.Terminal.Color>[] stops) { }
+        public static Termina.Terminal.Gradient Create(params Termina.Terminal.Color[] colors) { }
+    }
+    public interface IAnsiTerminal
+    {
+        int Height { get; }
+        int Width { get; }
+        void ClearRegion(int x, int y, int width, int height);
+        void ClearScreen();
+        void CopyToClipboard(string text);
+        void DisableMouse();
+        void DisableWheelScroll();
+        void EnableMouse();
+        void EnableWheelScroll();
+        void EnterAlternateScreen();
+        void ExitAlternateScreen();
+        void Flush();
+        void MoveTo(int x, int y);
+        void ResetColors();
+        void RestoreCursor();
+        void SaveCursor();
+        void SetBackground(Termina.Terminal.Color color);
+        void SetCursorVisible(bool visible);
+        void SetForeground(Termina.Terminal.Color color);
+        void Write(char c);
+        void Write(string text);
+    }
+    public interface IInlineOutput
+    {
+        System.Threading.Tasks.ValueTask CommitAsync(Termina.Layout.ILayoutNode content, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IInlineTerminalControl
+    {
+        void EraseLine();
+        void MoveCursorDown(int rows);
+        void MoveCursorToLineStart();
+        void MoveCursorUp(int rows);
+        void WriteLineBreak();
+    }
+    public readonly struct TerminalCell : System.IEquatable<Termina.Terminal.TerminalCell>
+    {
+        public TerminalCell(char character, Termina.Terminal.Color foreground, Termina.Terminal.Color background, Termina.Terminal.TextDecoration decoration) { }
+        public TerminalCell(string text, Termina.Terminal.Color foreground, Termina.Terminal.Color background, Termina.Terminal.TextDecoration decoration, bool isContinuation = false) { }
+        public Termina.Terminal.Color Background { get; init; }
+        public char Character { get; init; }
+        public Termina.Terminal.TextDecoration Decoration { get; init; }
+        public Termina.Terminal.Color Foreground { get; init; }
+        public bool IsContinuation { get; init; }
+        public string Text { get; init; }
+        public static Termina.Terminal.TerminalCell Empty { get; }
+        public bool Equals(Termina.Terminal.TerminalCell other) { }
+        public override int GetHashCode() { }
+        public bool HasSameStyle(Termina.Terminal.TerminalCell other) { }
+        public override string ToString() { }
+        public Termina.Terminal.TerminalCell WithBackground(Termina.Terminal.Color color) { }
+        public Termina.Terminal.TerminalCell WithCharacter(char c) { }
+        public Termina.Terminal.TerminalCell WithDecoration(Termina.Terminal.TextDecoration decoration) { }
+        public Termina.Terminal.TerminalCell WithForeground(Termina.Terminal.Color color) { }
+        public static Termina.Terminal.TerminalCell Continuation(Termina.Terminal.Color foreground, Termina.Terminal.Color background, Termina.Terminal.TextDecoration decoration) { }
+        public static Termina.Terminal.TerminalCell FromChar(char c) { }
+    }
+    [System.Flags]
+    public enum TextDecoration
+    {
+        None = 0,
+        Bold = 1,
+        Dim = 2,
+        Italic = 4,
+        Underline = 8,
+        Strikethrough = 16,
+    }
+    public readonly struct TextStyle : System.IEquatable<Termina.Terminal.TextStyle>
+    {
+        public TextStyle() { }
+        public TextStyle(Termina.Terminal.Color foreground) { }
+        public TextStyle(Termina.Terminal.Color foreground, Termina.Terminal.Color background) { }
+        public TextStyle(Termina.Terminal.Color foreground, Termina.Terminal.Color background, Termina.Terminal.TextDecoration decoration) { }
+        public Termina.Terminal.Color Background { get; init; }
+        public Termina.Terminal.TextDecoration Decoration { get; init; }
+        public Termina.Terminal.Color Foreground { get; init; }
+        public bool HasBackground { get; }
+        public bool HasDecoration { get; }
+        public bool HasForeground { get; }
+        public bool IsDefault { get; }
+        public static Termina.Terminal.TextStyle Default { get; }
+        public Termina.Terminal.TextStyle AddDecoration(Termina.Terminal.TextDecoration decoration) { }
+        public bool Equals(Termina.Terminal.TextStyle other) { }
+        public override int GetHashCode() { }
+        public bool HasFlag(Termina.Terminal.TextDecoration decoration) { }
+        public Termina.Terminal.TextStyle RemoveDecoration(Termina.Terminal.TextDecoration decoration) { }
+        public Termina.Terminal.TextStyle WithBackground(Termina.Terminal.Color color) { }
+        public Termina.Terminal.TextStyle WithDecoration(Termina.Terminal.TextDecoration decoration) { }
+        public Termina.Terminal.TextStyle WithForeground(Termina.Terminal.Color color) { }
+    }
+    public sealed class VirtualTerminal : Termina.Terminal.IAnsiTerminal, Termina.Terminal.IInlineTerminalControl
+    {
+        public VirtualTerminal(int width = 80, int height = 24) { }
+        public bool CursorVisible { get; }
+        public int CursorX { get; }
+        public int CursorY { get; }
+        public int Height { get; }
+        public bool InAlternateScreen { get; }
+        public bool MouseEnabled { get; }
+        public System.Collections.Generic.IReadOnlyList<string> RawOutput { get; }
+        public bool WheelScrollEnabled { get; }
+        public int Width { get; }
+        public void Clear() { }
+        public void ClearRegion(int x, int y, int width, int height) { }
+        public void ClearScreen() { }
+        public bool Contains(string text) { }
+        public void CopyToClipboard(string text) { }
+        public void DisableMouse() { }
+        public void DisableWheelScroll() { }
+        public void EnableMouse() { }
+        public void EnableWheelScroll() { }
+        public void EnterAlternateScreen() { }
+        public void EraseLine() { }
+        public void ExitAlternateScreen() { }
+        public void Flush() { }
+        public string[] GetAllLines() { }
+        public Termina.Terminal.Color GetBackground(int x, int y) { }
+        public char GetChar(int x, int y) { }
+        public Termina.Terminal.Color GetForeground(int x, int y) { }
+        public string GetLine(int y) { }
+        public string GetRegion(int x, int y, int width, int height) { }
+        public void MoveCursorDown(int rows) { }
+        public void MoveCursorToLineStart() { }
+        public void MoveCursorUp(int rows) { }
+        public void MoveTo(int x, int y) { }
+        public void ResetColors() { }
+        public void Resize(int newWidth, int newHeight) { }
+        public void RestoreCursor() { }
+        public void SaveCursor() { }
+        public void SetBackground(Termina.Terminal.Color color) { }
+        public void SetCursorVisible(bool visible) { }
+        public void SetForeground(Termina.Terminal.Color color) { }
+        public override string ToString() { }
+        public void Write(char c) { }
+        public void Write(string text) { }
+        public void WriteLineBreak() { }
+    }
+}

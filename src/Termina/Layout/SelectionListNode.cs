@@ -544,11 +544,11 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
         var maxLineWidth = 0;
         foreach (var line in item.Content.Lines)
         {
-            var lineWidth = line.Sum(s => s.GetCurrentSegment().Text.Length);
+            var lineWidth = line.Sum(s => DisplayWidth.GetColumnCount(s.GetCurrentSegment().Text));
             maxLineWidth = Math.Max(maxLineWidth, lineWidth);
         }
 
-        return prefix.Length + maxLineWidth;
+        return DisplayWidth.GetColumnCount(prefix) + maxLineWidth;
     }
 
     private string GetItemPrefix(SelectionItem<T> item, int index)
@@ -657,7 +657,7 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
         }
 
         // Render the text input after the prefix
-        var inputX = prefix.Length;
+        var inputX = DisplayWidth.GetColumnCount(prefix);
         var inputWidth = Math.Max(1, width - inputX);
         var inputBounds = new Rect(inputX, row, inputWidth, 1);
         var inputContext = context.CreateSubContext(inputBounds);
@@ -676,7 +676,8 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
         var lineSegments = lines[lineIndex];
 
         // Calculate prefix - only show on first line
-        var prefix = lineIndex == 0 ? GetItemPrefix(item, itemIndex) : new string(' ', GetItemPrefix(item, itemIndex).Length);
+        var itemPrefix = GetItemPrefix(item, itemIndex);
+        var prefix = lineIndex == 0 ? itemPrefix : new string(' ', DisplayWidth.GetColumnCount(itemPrefix));
 
         // Set background for highlighted items
         if (isHighlighted)
@@ -711,7 +712,7 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
         }
 
         // Render segments
-        var xPos = prefix.Length;
+        var xPos = DisplayWidth.GetColumnCount(prefix);
         foreach (var segment in lineSegments)
         {
             if (xPos >= width)
@@ -723,9 +724,11 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
 
             // Truncate if needed
             var remainingWidth = width - xPos;
-            if (text.Length > remainingWidth)
+            if (DisplayWidth.GetColumnCount(text) > remainingWidth)
             {
-                text = text[..(remainingWidth - 1)] + "…";
+                text = remainingWidth > 1
+                    ? DisplayWidth.TruncateToColumns(text, remainingWidth - 1) + "…"
+                    : "…";
             }
 
             // Apply colors - highlight overrides segment colors for foreground
@@ -756,7 +759,7 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
             }
 
             context.WriteAt(xPos, row, text);
-            xPos += text.Length;
+            xPos += DisplayWidth.GetColumnCount(text);
 
             // Reset decoration after each segment
             if (style.HasDecoration)

@@ -1,3 +1,5 @@
+using Termina.Terminal;
+
 namespace Termina.Components.Streaming;
 
 /// <summary>
@@ -22,7 +24,7 @@ public static class WordWrapper
         var result = new List<string>();
 
         // Handle text that's shorter than width
-        if (text.Length <= width)
+        if (DisplayWidth.GetColumnCount(text) <= width)
         {
             result.Add(text);
             return result;
@@ -33,8 +35,10 @@ public static class WordWrapper
 
         foreach (var word in words)
         {
+            var wordWidth = DisplayWidth.GetColumnCount(word);
+
             // If word itself is longer than width, break it
-            if (word.Length > width)
+            if (wordWidth > width)
             {
                 // Flush current line if it has content
                 if (currentLine.Length > 0)
@@ -43,26 +47,15 @@ public static class WordWrapper
                     currentLine.Clear();
                 }
 
-                // Break long word into chunks
-                for (var i = 0; i < word.Length; i += width)
-                {
-                    var chunk = word.Substring(i, Math.Min(width, word.Length - i));
-                    if (chunk.Length == width)
-                    {
-                        result.Add(chunk);
-                    }
-                    else
-                    {
-                        currentLine.Append(chunk);
-                    }
-                }
+                // Break long word into rows in one pass; the unfinished last row continues the line
+                currentLine.Append(BreakLongWord(word, wordWidth, width, result));
             }
             else if (currentLine.Length == 0)
             {
                 // Start of line
                 currentLine.Append(word);
             }
-            else if (currentLine.Length + 1 + word.Length <= width)
+            else if (DisplayWidth.GetColumnCount(currentLine.ToString()) + 1 + wordWidth <= width)
             {
                 // Word fits with space
                 currentLine.Append(' ');
@@ -83,7 +76,9 @@ public static class WordWrapper
             result.Add(currentLine.ToString());
         }
 
-        return result;
+        // A whitespace-only line that is wider than the width produces no words. Return one blank
+        // line so the result matches the empty-string case and the styled wrapper.
+        return result.Count > 0 ? result : [""];
     }
 
     /// <summary>
@@ -119,6 +114,43 @@ public static class WordWrapper
     public static int CalculateTotalWrappedLineCount(IEnumerable<string> lines, int width)
     {
         return lines.Sum(line => CalculateWrappedLineCount(line, width));
+    }
+
+    /// <summary>
+    /// Breaks a word wider than <paramref name="width"/> into rows in a single pass over its text
+    /// elements. Re-measuring the remainder for every row would be quadratic in the word length.
+    /// </summary>
+    /// <returns>The unfinished last row. It is longer than the width only when one text element is.</returns>
+    private static string BreakLongWord(string word, int wordWidth, int width, List<string> result)
+    {
+        var rowStart = 0;
+        var taken = 0;
+        var remainingColumns = wordWidth;
+
+        foreach (var cell in DisplayWidth.EnumerateCells(word))
+        {
+            if (taken + cell.ColumnWidth <= width)
+            {
+                taken += cell.ColumnWidth;
+                continue;
+            }
+
+            // Not even one element fits: the rest of the word stays together
+            if (cell.StartIndex == rowStart)
+                break;
+
+            result.Add(word.Substring(rowStart, cell.StartIndex - rowStart));
+            remainingColumns -= taken;
+            rowStart = cell.StartIndex;
+            taken = 0;
+
+            if (remainingColumns <= width || cell.ColumnWidth > width)
+                break;
+
+            taken = cell.ColumnWidth;
+        }
+
+        return word.Substring(rowStart);
     }
 
     private static List<string> SplitIntoWords(string text)

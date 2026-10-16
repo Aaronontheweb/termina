@@ -110,6 +110,38 @@ public class ProgressBarNodeTests
         Assert.NotEqual(default, labelCell);
     }
 
+    [Fact]
+    public void Render_CjkLabel_ReservesDisplayColumns()
+    {
+        var node = new ProgressBarNode()
+            .WithValue(0.5)
+            .WithLabel("已复制");
+        var terminal = new VirtualTerminal(20, 1);
+        var context = new RegionRenderContext(terminal, 0, 0, 20, 1);
+
+        node.Render(context, new Rect(0, 0, 10, 1));
+
+        Assert.Equal('已', terminal.GetChar(4, 0));
+        Assert.Equal('制', terminal.GetChar(8, 0));
+    }
+
+    [Fact]
+    public void WithWideFillAndEmptyChars_IgnoresInvalidBarCharacters()
+    {
+        var node = new ProgressBarNode()
+            .WithValue(1.0)
+            .WithFillChar('你')
+            .WithEmptyChar('好');
+        var terminal = new VirtualTerminal(8, 1);
+        var context = new RegionRenderContext(terminal, 0, 0, 8, 1);
+
+        node.Render(context, new Rect(0, 0, 4, 1));
+
+        Assert.Equal('█', terminal.GetChar(0, 0));
+        Assert.DoesNotContain("你", terminal.GetLine(0));
+        Assert.DoesNotContain("好", terminal.GetLine(0));
+    }
+
     // ── render: range normalization ───────────────────────────────────────────
 
     [Fact]

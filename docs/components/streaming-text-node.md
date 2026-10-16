@@ -191,6 +191,17 @@ stream.Append(
 );
 ```
 
+Background highlights stay contiguous across a wrap. The space that joins two words on a wrapped line takes the style of the whitespace that separated them in the source. A highlighted phrase keeps its background across the whole phrase, and an unstyled gap between two highlighted words does not pick up a background.
+
+```csharp
+// The yellow highlight covers the whole phrase, including the spaces between words.
+stream.Append(
+    "Highlighted message that wraps",
+    foreground: Color.Black,
+    background: Color.Yellow
+);
+```
+
 ## Text Composition and Tracked Segments
 
 StreamingTextNode supports **tracked segments** - text elements that can be independently animated and later removed or replaced. This enables inline animations like spinners, progress bars, timers, and other dynamic content that appears alongside static text.

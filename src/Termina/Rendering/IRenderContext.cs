@@ -90,3 +90,8 @@ public interface IRenderContext
     /// <returns>A new render context clipped to the specified bounds.</returns>
     IRenderContext CreateSubContext(Layout.Rect bounds);
 }
+
+internal interface IScreenPositionedRenderContext
+{
+    Layout.ScreenBounds GetScreenBounds(Layout.Rect bounds);
+}

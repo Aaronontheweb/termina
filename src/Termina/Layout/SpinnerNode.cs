@@ -172,8 +172,8 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
-        var frameWidth = _frames[0].Length;
-        var labelWidth = string.IsNullOrEmpty(Label) ? 0 : Label.Length + 1; // +1 for space
+        var frameWidth = DisplayWidth.GetColumnCount(_frames[0]);
+        var labelWidth = string.IsNullOrEmpty(Label) ? 0 : DisplayWidth.GetColumnCount(Label) + 1; // +1 for space
         var totalWidth = frameWidth + labelWidth;
 
         var width = WidthConstraint.Compute(available.Width, totalWidth, available.Width);
@@ -196,7 +196,7 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (SpinnerColor.HasValue)
             spinnerContext.SetForeground(SpinnerColor.Value);
         spinnerContext.WriteAt(x, 0, frame);
-        x += frame.Length;
+        x += DisplayWidth.GetColumnCount(frame);
 
         // Draw label
         if (!string.IsNullOrEmpty(Label))
@@ -210,7 +210,7 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             x++;
 
             var maxLabelLen = bounds.Width - x;
-            var displayLabel = Label.Length > maxLabelLen ? Label[..maxLabelLen] : Label;
+            var displayLabel = DisplayWidth.GetColumnCount(Label) > maxLabelLen ? DisplayWidth.TruncateToColumns(Label, maxLabelLen) : Label;
             spinnerContext.WriteAt(x, 0, displayLabel);
         }
 

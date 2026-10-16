@@ -23,6 +23,11 @@ public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
     private ILayoutNode _currentChild;
     private bool _isActive;
     private bool _needsEvaluation = true;
+    private bool _isEvaluating;
+    private bool _reevaluationRequested;
+
+    // Bounds the settle loop when a factory invalidates its own node on every pass (never converges).
+    internal const int MaxReevaluationPasses = 8;
 
     /// <inheritdoc />
     public Observable<Unit> Invalidated => _invalidated;
@@ -45,19 +50,68 @@ public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
     public void Invalidate()
     {
         _needsEvaluation = true;
+
+        // A re-entrant call from inside the factory: request another pass of the current settle loop
+        // instead of recursing, and do not notify the parent mid-evaluation.
+        if (_isEvaluating)
+        {
+            _reevaluationRequested = true;
+            return;
+        }
+
         EvaluateFactory();
         _invalidated.OnNext(Unit.Default);
     }
 
     /// <summary>
     /// Evaluate the factory and update the child if it changed (by reference).
-    /// No-op when clean (not invalidated).
+    /// No-op when clean (not invalidated). Re-runs the factory until it stops requesting re-evaluation
+    /// (convergence), bounded by <see cref="MaxReevaluationPasses"/>, so a factory that invalidates its
+    /// own node self-heals instead of blanking the content or recursing without end (#159).
     /// </summary>
     private void EvaluateFactory()
     {
         if (!_needsEvaluation)
             return;
 
+        // Re-entrant evaluation (the factory invalidated during a Measure/Render pass): defer, do not recurse.
+        if (_isEvaluating)
+        {
+            _reevaluationRequested = true;
+            return;
+        }
+
+        _isEvaluating = true;
+        try
+        {
+            var passes = 0;
+            do
+            {
+                _reevaluationRequested = false;
+                EvaluateFactoryOnce();
+            }
+            while (_reevaluationRequested && ++passes < MaxReevaluationPasses);
+
+            if (_reevaluationRequested)
+            {
+                // The factory invalidated its own node on every pass and never converged. Keep the last
+                // child rather than hang, and surface the mistake in debug builds.
+                System.Diagnostics.Debug.WriteLine(
+                    $"DynamicLayoutNode factory did not converge after {MaxReevaluationPasses} passes; " +
+                    "it invalidates its own node on every evaluation. Move the side effect out of the factory.");
+            }
+        }
+        finally
+        {
+            _isEvaluating = false;
+        }
+    }
+
+    /// <summary>
+    /// Evaluate the factory once and swap the child if it changed (by reference).
+    /// </summary>
+    private void EvaluateFactoryOnce()
+    {
         _needsEvaluation = false;
         var newChild = _factory();
 
@@ -80,6 +134,8 @@ public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
         {
             newLayoutNode.OnActivate();
         }
+
+        RuntimeContext?.NotifyLayoutStructureChanged();
     }
 
     /// <summary>

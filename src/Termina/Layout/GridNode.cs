@@ -51,7 +51,9 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
     private readonly Subject<Unit> _invalidated = new();
     private readonly Subject<(int Row, int Col)> _focusedCellChanged = new();
     private readonly Subject<(int Row, int Col, ILayoutNode? Cell)> _cellActivated = new();
-    private readonly List<IDisposable> _cellSubscriptions = new();
+    // Invalidation subscription per content node, so a cell swap can dispose exactly the displaced
+    // node's subscription. Keyed by content because the subscription belongs to the node, not the cell.
+    private readonly Dictionary<ILayoutNode, IDisposable> _cellSubscriptions = new();
 
     private ILayoutNode?[,] _cells;
     private (int ColSpan, int RowSpan)[,] _spans;
@@ -106,8 +108,8 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
     /// <inheritdoc />
     internal override void DisconnectChildInvalidationSubscriptions()
     {
-        foreach (var sub in _cellSubscriptions)
-            sub.Dispose();
+        foreach (var subscription in _cellSubscriptions.Values)
+            subscription.Dispose();
 
         _cellSubscriptions.Clear();
     }
@@ -270,35 +272,31 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
         EnsureRows(row + rowSpan);
         EnsureColumns(col + colSpan);
 
-        // Dispose old content subscription if exists
-        var oldContent = _cells[row, col];
-        if (oldContent != null)
-        {
-            // Find and remove subscription - simplified approach
-            oldContent.Dispose();
-        }
+        // Remove whatever is currently in the target cell: deactivate its content (do not dispose — a
+        // swapped-out node may be reused) and dispose that cell's own invalidation subscription.
+        DisplaceCell(row, col);
 
         _cells[row, col] = content;
         _spans[row, col] = (colSpan, rowSpan);
 
-        // Mark spanned cells as occupied (null content, 0 span indicates part of another cell)
+        // Mark spanned cells as occupied (null content, 0 span indicates part of another cell).
         for (var r = row; r < row + rowSpan; r++)
         {
             for (var c = col; c < col + colSpan; c++)
             {
                 if (r != row || c != col)
                 {
-                    _cells[r, c] = null;
+                    DisplaceCell(r, c);
                     _spans[r, c] = (0, 0); // 0,0 indicates this is part of a span
                 }
             }
         }
 
-        // Subscribe to content invalidation
+        // Subscribe to the new content's invalidation, tracked by content so a later swap can remove it.
         if (content is IInvalidatingNode invalidating)
         {
-            var sub = invalidating.Invalidated.Subscribe(_ => _invalidated.OnNext(Unit.Default));
-            _cellSubscriptions.Add(sub);
+            _cellSubscriptions[content] =
+                invalidating.Invalidated.Subscribe(_ => _invalidated.OnNext(Unit.Default));
         }
 
         return this;
@@ -340,6 +338,26 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
     }
 
     #endregion
+
+    /// <summary>
+    /// Removes the content currently occupying a cell: disposes that cell's invalidation subscription and
+    /// deactivates the content (active/inactive pattern), then clears the cell. The content is not disposed
+    /// here — a swapped-out node may still be reused; disposal happens only in <see cref="Dispose"/>.
+    /// </summary>
+    private void DisplaceCell(int row, int col)
+    {
+        var content = _cells[row, col];
+        if (content is null)
+            return;
+
+        if (_cellSubscriptions.Remove(content, out var subscription))
+            subscription.Dispose();
+
+        if (content is IActivatableNode activatable)
+            activatable.OnDeactivate();
+
+        _cells[row, col] = null;
+    }
 
     #region Grid Resizing
 
@@ -916,8 +934,8 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
         if (_disposed) return;
         _disposed = true;
 
-        foreach (var sub in _cellSubscriptions)
-            sub.Dispose();
+        foreach (var subscription in _cellSubscriptions.Values)
+            subscription.Dispose();
         _cellSubscriptions.Clear();
 
         _invalidated.OnCompleted();

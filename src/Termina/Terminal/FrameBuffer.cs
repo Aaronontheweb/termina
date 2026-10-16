@@ -243,12 +243,14 @@ public sealed class FrameBuffer
         if (y < 0 || y >= Height)
             throw new ArgumentOutOfRangeException(nameof(y));
 
-        var chars = new char[Width];
+        var sb = new System.Text.StringBuilder(Width);
         for (var x = 0; x < Width; x++)
         {
-            chars[x] = _cells[y, x].Character;
+            if (_cells[y, x].IsContinuation)
+                continue;
+            sb.Append(_cells[y, x].Text);
         }
-        return new string(chars);
+        return sb.ToString();
     }
 
     /// <summary>

@@ -238,6 +238,16 @@ public static class AnsiCodes
     public static string EnableKittyKeyboard(int flags) => $"{Csi}>{flags}u";
 
     /// <summary>
+    /// Query the active kitty keyboard protocol flags. Format: CSI ? u
+    /// </summary>
+    internal const string QueryKittyKeyboard = $"{Csi}?u";
+
+    /// <summary>
+    /// Request primary device attributes. Format: CSI c
+    /// </summary>
+    internal const string RequestPrimaryDeviceAttributes = $"{Csi}c";
+
+    /// <summary>
     /// Pop the kitty keyboard protocol flag stack, restoring the terminal's
     /// previous keyboard mode. Format: CSI &lt; u
     /// </summary>

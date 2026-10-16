@@ -56,6 +56,10 @@ public class CounterViewModel : ReactiveViewModel
                 Navigate("/todos");
                 break;
 
+            case ConsoleKey.U:
+                Navigate("/unicode");
+                break;
+
             case ConsoleKey.Q:
                 Shutdown();
                 break;

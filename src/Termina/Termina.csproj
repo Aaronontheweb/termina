@@ -17,12 +17,31 @@
   </ItemGroup>
 
   <!--
-    Reference the source generator.
-    - The generator project handles its own packaging into analyzers/dotnet/cs
-    - No PrivateAssets means the dependency flows to NuGet consumers
+    Reference the analyzers/source generator.
+    - OutputItemType="Analyzer" runs TERMINA002/003/004 and the ReactivePropertyGenerator on
+      Termina's own compilation (self-analysis).
+    - ReferenceOutputAssembly="false" keeps the netstandard2.0 generator assembly out of Termina's
+      compile references and runtime dependencies (no TreatWarningsAsErrors fallout).
+    - The _BundleGeneratorAnalyzer target below packs the generator DLL into Termina's OWN package
+      under analyzers/dotnet/cs, so NuGet consumers receive the analyzers directly — no transitive
+      Termina.Generators package dependency required.
   -->
   <ItemGroup>
-    <ProjectReference Include="..\Termina.Generators\Termina.Generators.csproj"/>
+    <ProjectReference Include="..\Termina.Generators\Termina.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_BundleGeneratorAnalyzer</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="_BundleGeneratorAnalyzer" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(Analyzer)"
+                              Condition="'%(Filename)' == 'Termina.Generators'"
+                              PackagePath="analyzers/dotnet/cs" />
+    </ItemGroup>
+  </Target>
 
 </Project>

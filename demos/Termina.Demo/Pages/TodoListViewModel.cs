@@ -145,6 +145,10 @@ public class TodoListViewModel : ReactiveViewModel
                 Navigate("/counter");
                 break;
 
+            case ConsoleKey.U:
+                Navigate("/unicode");
+                break;
+
             case ConsoleKey.Q:
                 Shutdown();
                 break;

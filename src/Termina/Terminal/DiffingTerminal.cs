@@ -92,54 +92,82 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
     /// <inheritdoc />
     public void Write(string text)
     {
-        foreach (var c in text)
+        foreach (var cell in DisplayWidth.EnumerateCells(text))
         {
-            WriteCharToBuffer(c);
+            WriteTextElementToBuffer(cell.Text, cell.ColumnWidth);
         }
     }
 
     /// <inheritdoc />
     public void Write(char c)
     {
-        WriteCharToBuffer(c);
+        WriteTextElementToBuffer(c.ToString(), DisplayWidth.GetColumnCount(c));
     }
 
-    private void WriteCharToBuffer(char c)
+    private void WriteTextElementToBuffer(string text, int columnWidth)
     {
         if (_cursorX < 0 || _cursorX >= Width || _cursorY < 0 || _cursorY >= Height)
             return;
 
         // Handle special characters
-        switch (c)
+        switch (text)
         {
-            case '\n':
+            case "\n":
                 _cursorY++;
                 _cursorX = 0;
                 return;
-            case '\r':
+            case "\r":
                 _cursorX = 0;
                 return;
-            case '\t':
+            case "\t":
                 // Tab to next 8-column boundary
                 var nextTab = ((_cursorX / 8) + 1) * 8;
                 while (_cursorX < nextTab && _cursorX < Width)
                 {
-                    WriteCharToBuffer(' ');
+                    WriteTextElementToBuffer(" ", 1);
                 }
                 return;
         }
 
+        if (columnWidth <= 0)
+            return;
+
+        if (_cursorX + columnWidth > Width)
+        {
+            _cursorX = 0;
+            _cursorY++;
+            if (_cursorY >= Height)
+                return;
+        }
+
         // Write the cell to pending buffer
-        var cell = new TerminalCell(c, _currentForeground, _currentBackground, _currentDecoration);
+        ClearWideCellAt(_cursorX, _cursorY);
+
+        var cell = new TerminalCell(text, _currentForeground, _currentBackground, _currentDecoration);
         _pendingFrame.TrySet(_cursorX, _cursorY, cell);
 
+        if (columnWidth == 2 && _cursorX + 1 < Width)
+        {
+            _pendingFrame.TrySet(_cursorX + 1, _cursorY,
+                TerminalCell.Continuation(_currentForeground, _currentBackground, _currentDecoration));
+        }
+
         // Advance cursor
-        _cursorX++;
+        _cursorX += columnWidth;
         if (_cursorX >= Width)
         {
             _cursorX = 0;
             _cursorY++;
         }
+    }
+
+    private void ClearWideCellAt(int x, int y)
+    {
+        if (x > 0 && _pendingFrame.GetSafe(x, y).IsContinuation)
+            _pendingFrame.TrySet(x - 1, y, TerminalCell.Empty);
+
+        if (x + 1 < Width && _pendingFrame.GetSafe(x + 1, y).IsContinuation)
+            _pendingFrame.TrySet(x + 1, y, TerminalCell.Empty);
     }
 
     /// <inheritdoc />
@@ -273,8 +301,10 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
             for (var x = 0; x < _pendingFrame.Width; x++)
             {
                 var cell = _pendingFrame[x, y];
+                if (cell.IsContinuation)
+                    continue;
                 EmitStyleChanges(cell);
-                _inner.Write(cell.Character);
+                _inner.Write(cell.Text);
             }
         }
 
@@ -294,12 +324,15 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
         // Use GetChangedRuns for efficient output (groups consecutive changes)
         foreach (var (y, startX, cells) in _pendingFrame.GetChangedRuns(_currentFrame))
         {
-            _inner.MoveTo(startX, y);
-
-            foreach (var cell in cells)
+            for (var i = 0; i < cells.Length; i++)
             {
+                var cell = cells[i];
+                if (cell.IsContinuation)
+                    continue;
+
+                _inner.MoveTo(startX + i, y);
                 EmitStyleChanges(cell);
-                _inner.Write(cell.Character);
+                _inner.Write(cell.Text);
             }
         }
 

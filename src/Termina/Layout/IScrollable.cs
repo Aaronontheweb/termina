@@ -39,3 +39,8 @@ public interface IScrollable
     /// <param name="lines">Number of lines to scroll. Defaults to 1.</param>
     void ScrollDown(int lines = 1);
 }
+
+internal interface IPointerScrollable : IScrollable
+{
+    ScreenBounds LastRenderedBounds { get; }
+}

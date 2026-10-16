@@ -64,6 +64,18 @@ public class EscapeSequenceParserTests
         Assert.IsType<KeyPressed>(events[0]);
     }
 
+    [Fact]
+    public void ConsoleRecord_ShiftEnter_PreservesShiftModifier()
+    {
+        var parser = new EscapeSequenceParser();
+
+        var pressed = Assert.IsType<KeyPressed>(Assert.Single(parser.Process(
+            new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: true, alt: false, control: false))));
+
+        Assert.Equal(ConsoleKey.Enter, pressed.KeyInfo.Key);
+        Assert.True(pressed.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift));
+    }
+
     // --- Mouse scroll up (button 64) ---
 
     [Fact]
@@ -75,6 +87,8 @@ public class EscapeSequenceParserTests
         var scroll = Assert.Single(events);
         var mse = Assert.IsType<MouseScrollEvent>(scroll);
         Assert.Equal(+1, mse.Delta);
+        Assert.Equal(4, mse.X);
+        Assert.Equal(9, mse.Y);
     }
 
     [Fact]
@@ -353,6 +367,31 @@ public class EscapeSequenceParserTests
         var pressed = Assert.IsType<KeyPressed>(kp);
         Assert.Equal(ConsoleKey.Enter, pressed.KeyInfo.Key);
         Assert.Equal(default(ConsoleModifiers), pressed.KeyInfo.Modifiers);
+    }
+
+    [Fact]
+    public void KittyKeyboardFlagResponse_EmitsCapabilityReport()
+    {
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, "[?9u"));
+
+        var report = Assert.IsType<KittyKeyboardFlagsReported>(Assert.Single(events));
+        Assert.Equal(9, report.Flags);
+        Assert.False(parser.IsBufferingEscape);
+    }
+
+    [Fact]
+    public void PrimaryDeviceAttributesResponse_ClosesCapabilityProbe()
+    {
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, "[?1;2c"));
+
+        Assert.IsType<PrimaryDeviceAttributesReported>(Assert.Single(events));
+        Assert.False(parser.IsBufferingEscape);
     }
 
     [Fact]

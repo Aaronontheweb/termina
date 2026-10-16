@@ -10,7 +10,7 @@ namespace Termina.Terminal;
 /// Real terminal implementation using ANSI escape sequences.
 /// Writes to standard output.
 /// </summary>
-public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
+public sealed class AnsiTerminal : IAnsiTerminal, IInlineTerminalControl, IDisposable
 {
     /// <summary>
     /// Explicit output writer for tests/benchmarks, or <c>null</c> to write to
@@ -152,6 +152,38 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     public void RestoreCursor()
     {
         _buffer.Append(AnsiCodes.RestoreCursor);
+    }
+
+    /// <inheritdoc />
+    public void MoveCursorUp(int rows)
+    {
+        if (rows > 0)
+            _buffer.Append(AnsiCodes.MoveUp(rows));
+    }
+
+    /// <inheritdoc />
+    public void MoveCursorDown(int rows)
+    {
+        if (rows > 0)
+            _buffer.Append(AnsiCodes.MoveDown(rows));
+    }
+
+    /// <inheritdoc />
+    public void MoveCursorToLineStart()
+    {
+        _buffer.Append('\r');
+    }
+
+    /// <inheritdoc />
+    public void EraseLine()
+    {
+        _buffer.Append(AnsiCodes.ClearLine);
+    }
+
+    /// <inheritdoc />
+    public void WriteLineBreak()
+    {
+        _buffer.Append("\r\n");
     }
 
     /// <inheritdoc />

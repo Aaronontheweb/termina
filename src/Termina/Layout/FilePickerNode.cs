@@ -653,11 +653,11 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
         context.SetDecoration(TextDecoration.Bold);
 
         var pathDisplay = _currentPath;
-        var maxPathWidth = width - BreadcrumbPrefix.Length;
-        if (maxPathWidth > 3 && pathDisplay.Length > maxPathWidth)
-            pathDisplay = "..." + pathDisplay[(pathDisplay.Length - maxPathWidth + 3)..];
-        else if (maxPathWidth >= 0 && pathDisplay.Length > maxPathWidth)
-            pathDisplay = maxPathWidth > 0 ? pathDisplay[..maxPathWidth] : "";
+        var maxPathWidth = width - DisplayWidth.GetColumnCount(BreadcrumbPrefix);
+        if (maxPathWidth > 3 && DisplayWidth.GetColumnCount(pathDisplay) > maxPathWidth)
+            pathDisplay = "..." + DisplayWidth.TruncateStartToColumns(pathDisplay, maxPathWidth - 3);
+        else if (maxPathWidth >= 0 && DisplayWidth.GetColumnCount(pathDisplay) > maxPathWidth)
+            pathDisplay = maxPathWidth > 0 ? DisplayWidth.TruncateToColumns(pathDisplay, maxPathWidth) : "";
 
         context.WriteAt(0, row, BreadcrumbPrefix + pathDisplay);
         context.SetDecoration(TextDecoration.None);
@@ -671,7 +671,7 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
 
         if (_filterInput != null)
         {
-            var inputX = FilterPrefix.Length;
+            var inputX = DisplayWidth.GetColumnCount(FilterPrefix);
             var inputBounds = new Rect(inputX, row, Math.Max(1, width - inputX), 1);
             var inputContext = context.CreateSubContext(inputBounds);
             _filterInput.Render(inputContext, new Rect(0, 0, inputBounds.Width, 1));
@@ -727,10 +727,10 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
 
         if (width <= 0) return;
 
-        if (displayText.Length > width && width > 1)
-            displayText = displayText[..(width - 1)] + "~";
-        else if (displayText.Length > width)
-            displayText = displayText[..width];
+        if (DisplayWidth.GetColumnCount(displayText) > width && width > 1)
+            displayText = DisplayWidth.TruncateToColumns(displayText, width - 1) + "~";
+        else if (DisplayWidth.GetColumnCount(displayText) > width)
+            displayText = DisplayWidth.TruncateToColumns(displayText, width);
 
         // Apply highlight or normal colors
         if (isHighlighted)
@@ -794,8 +794,8 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
             hints = "[Enter] Open/Select  [Backspace] Up  [/] Filter  [Esc] Cancel";
         }
 
-        if (hints.Length > width)
-            hints = hints[..width];
+        if (DisplayWidth.GetColumnCount(hints) > width)
+            hints = DisplayWidth.TruncateToColumns(hints, width);
 
         context.WriteAt(0, row, hints);
         context.ResetColors();

@@ -255,6 +255,23 @@ public class WizardNodeTests
     }
 
     [Fact]
+    public void Render_CjkBorderTitle_DoesNotOverwriteWideTitleCells()
+    {
+        var wizard = CreateThreeStepWizard()
+            .WithTitle("你好")
+            .WithBorder(BorderStyle.Rounded);
+        var terminal = new VirtualTerminal(20, 8);
+        var context = new RegionRenderContext(terminal, 0, 0, 20, 8);
+
+        wizard.Render(context, new Rect(0, 0, 10, 6));
+
+        Assert.Equal('你', terminal.GetChar(2, 0));
+        Assert.Equal('好', terminal.GetChar(4, 0));
+        Assert.Equal('─', terminal.GetChar(7, 0));
+        Assert.Equal('╮', terminal.GetChar(9, 0));
+    }
+
+    [Fact]
     public void HandleInput_FallsThroughToWizard_WhenChildDoesNotHandle()
     {
         // Arrange: focusable child doesn't handle Enter

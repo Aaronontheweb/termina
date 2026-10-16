@@ -17,14 +17,28 @@ public sealed class LayoutRuntimeContext
         FrameProvider renderFrameProvider,
         TimeProvider timeProvider,
         Action requestRedraw)
+        : this(renderFrameProvider, timeProvider, requestRedraw, static () => { })
+    {
+    }
+
+    /// <summary>
+    /// Creates a new layout runtime context with a structural-change callback.
+    /// </summary>
+    public LayoutRuntimeContext(
+        FrameProvider renderFrameProvider,
+        TimeProvider timeProvider,
+        Action requestRedraw,
+        Action notifyLayoutStructureChanged)
     {
         ArgumentNullException.ThrowIfNull(renderFrameProvider);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(requestRedraw);
+        ArgumentNullException.ThrowIfNull(notifyLayoutStructureChanged);
 
         RenderFrameProvider = renderFrameProvider;
         TimeProvider = timeProvider;
         RequestRedraw = requestRedraw;
+        NotifyLayoutStructureChanged = notifyLayoutStructureChanged;
     }
 
     /// <summary>
@@ -41,6 +55,11 @@ public sealed class LayoutRuntimeContext
     /// Requests a redraw from the owning Termina application.
     /// </summary>
     public Action RequestRedraw { get; }
+
+    /// <summary>
+    /// Notifies the owning page that the set of child nodes changed.
+    /// </summary>
+    public Action NotifyLayoutStructureChanged { get; }
 }
 
 /// <summary>

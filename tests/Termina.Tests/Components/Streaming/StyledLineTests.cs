@@ -172,4 +172,32 @@ public class StyledLineTests
         Assert.Equal(11, line.Length);
         Assert.Equal(5, clone.Length);
     }
+
+    [Fact]
+    public void SliceByColumns_WideGlyphAtBudgetBoundary_DoesNotPullFromNextSegment()
+    {
+        // The first segment is "cc中" (c=1, c=1, 中=2 columns). A three-column slice can take
+        // "cc" only, because the wide glyph needs two columns and 2 + 2 > 3. The slice must stop
+        // there. It must NOT skip the rest of the first segment and take "e" from the next segment.
+        var line = new StyledLine();
+        line.Append(new StyledSegment("cc中", new TextStyle(Color.Red)));
+        line.Append(new StyledSegment("e", new TextStyle(Color.Blue)));
+
+        var slice = line.SliceByColumns(0, 3);
+
+        Assert.Equal("cc", slice.ToPlainText());
+    }
+
+    [Fact]
+    public void SliceByColumns_StartInsideMultiSegmentLine_KeepsColumnsContiguous()
+    {
+        // Skip the first two columns ("cc"), then take the rest across the segment boundary.
+        var line = new StyledLine();
+        line.Append(new StyledSegment("cc中", new TextStyle(Color.Red)));
+        line.Append(new StyledSegment("e", new TextStyle(Color.Blue)));
+
+        var slice = line.SliceByColumns(2, 100);
+
+        Assert.Equal("中e", slice.ToPlainText());
+    }
 }

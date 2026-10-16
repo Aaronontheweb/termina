@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Termina.Terminal;
+using Termina.Rendering;
 
 namespace Termina.Tests.Terminal;
 
@@ -49,6 +50,36 @@ public class DiffingTerminalTests
         Assert.Equal('l', inner.GetChar(2, 0));
         Assert.Equal('l', inner.GetChar(3, 0));
         Assert.Equal('o', inner.GetChar(4, 0));
+    }
+
+    [Fact]
+    public void Flush_AdvancesByDisplayColumnsForCjk()
+    {
+        var inner = new VirtualTerminal(80, 24);
+        var diffing = new DiffingTerminal(inner);
+
+        diffing.MoveTo(0, 0);
+        diffing.Write("你A");
+        diffing.Flush();
+
+        Assert.Equal('你', inner.GetChar(0, 0));
+        Assert.Equal(' ', inner.GetChar(1, 0));
+        Assert.Equal('A', inner.GetChar(2, 0));
+    }
+
+    [Fact]
+    public void Flush_DecoratedText_DoesNotRenderAnsiFragments()
+    {
+        var inner = new VirtualTerminal(80, 24);
+        var diffing = new DiffingTerminal(inner);
+        var context = new RegionRenderContext(diffing, 0, 0, 80, 24);
+
+        context.SetDecoration(TextDecoration.Bold);
+        context.WriteAt(0, 0, "Hi");
+        diffing.Flush();
+
+        Assert.Equal("Hi", inner.GetLine(0));
+        Assert.DoesNotContain("[1m", inner.ToString());
     }
 
     [Fact]
