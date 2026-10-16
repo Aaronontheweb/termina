@@ -26,6 +26,40 @@ public class CopyableTextNodeTests
     }
 
     [Fact]
+    public void Enter_CopiesCompleteSemanticContentWithoutDisplayDecoration()
+    {
+        const string display = "\u001b[32m✓ shell_execute → output...\u001b[0m";
+        const string semantic = "shell_execute\nExit code: 0\ncomplete output";
+        var clipboard = new TestClipboardService();
+        var node = new CopyableTextNode(clipboard, display)
+            .WithSemanticContent(semantic);
+
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        var copiedText = Assert.IsType<string>(clipboard.LastCopiedText);
+        Assert.Equal(semantic, copiedText);
+        Assert.DoesNotContain('\u001b', copiedText);
+        Assert.DoesNotContain("✓", copiedText);
+    }
+
+    [Fact]
+    public void TryCopy_WhenClipboardFails_ReturnsFalseAndKeepsSelection()
+    {
+        var clipboard = new TestClipboardService { Succeeds = false };
+        var node = new CopyableTextNode(clipboard, "abcd");
+        node.OnFocused();
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, true, false, false));
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, true, false, false));
+
+        var success = node.TryCopy();
+
+        Assert.False(success);
+        Assert.True(node.HasSelection);
+        Assert.Equal("ab", node.SelectedText);
+        Assert.Equal("ab", clipboard.LastCopiedText);
+    }
+
+    [Fact]
     public void NonEnterKey_IsNotHandled()
     {
         var clipboard = new TestClipboardService();
@@ -208,10 +242,12 @@ public class CopyableTextNodeTests
     {
         public string? LastCopiedText { get; private set; }
 
+        public bool Succeeds { get; init; } = true;
+
         public bool Copy(string text)
         {
             LastCopiedText = text;
-            return true;
+            return Succeeds;
         }
     }
 

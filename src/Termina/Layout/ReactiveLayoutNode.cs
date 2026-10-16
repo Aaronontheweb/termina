@@ -49,6 +49,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                     newChildNode.OnActivate();
                 }
 
+                RuntimeContext?.NotifyLayoutStructureChanged();
                 _invalidated.OnNext(Unit.Default);
             });
     }
@@ -122,6 +123,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                         newChildNode.OnActivate();
                     }
 
+                    RuntimeContext?.NotifyLayoutStructureChanged();
                     _invalidated.OnNext(Unit.Default);
                 });
         }
@@ -210,6 +212,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                     newChildNode.OnActivate();
                 }
 
+                RuntimeContext?.NotifyLayoutStructureChanged();
                 _invalidated.OnNext(Unit.Default);
             });
     }
@@ -281,6 +284,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                         newChildNode.OnActivate();
                     }
 
+                    RuntimeContext?.NotifyLayoutStructureChanged();
                     _invalidated.OnNext(Unit.Default);
                 });
         }

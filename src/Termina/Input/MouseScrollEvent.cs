@@ -17,4 +17,20 @@ namespace Termina.Input;
 /// Negative values indicate scrolling down (toward newer/later content).
 /// Each wheel tick typically has a magnitude of 1.
 /// </param>
-public sealed record MouseScrollEvent(int Delta) : IInputEvent;
+public sealed record MouseScrollEvent(int Delta) : IInputEvent
+{
+    /// <summary>
+    /// Gets the zero-based screen column for the wheel event when the terminal reports it.
+    /// </summary>
+    public int? X { get; init; }
+
+    /// <summary>
+    /// Gets the zero-based screen row for the wheel event when the terminal reports it.
+    /// </summary>
+    public int? Y { get; init; }
+
+    /// <summary>
+    /// Gets the keyboard modifiers that accompanied the wheel event.
+    /// </summary>
+    public ConsoleModifiers Modifiers { get; init; }
+}

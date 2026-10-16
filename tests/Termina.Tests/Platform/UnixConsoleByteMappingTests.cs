@@ -138,6 +138,19 @@ public class UnixConsoleByteMappingTests
         Assert.Equal(expectedKey, kp.KeyInfo.Key);
     }
 
+    [Fact]
+    public void RawBytes_CsiUShiftEnter_PreservesShiftModifier()
+    {
+        var parser = new EscapeSequenceParser();
+        var events = "\x1b[13;2u"u8.ToArray()
+            .SelectMany(value => parser.Process(RawByteKeyMapper.ByteToKeyInfo(value)))
+            .ToList();
+
+        var pressed = Assert.IsType<KeyPressed>(Assert.Single(events));
+        Assert.Equal(ConsoleKey.Enter, pressed.KeyInfo.Key);
+        Assert.True(pressed.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift));
+    }
+
     /// <summary>
     /// UTF-8 multi-byte sequences must reassemble into one <see cref="ConsoleKeyInfo"/> per
     /// codepoint when fed through the same decoding logic the reader thread uses.

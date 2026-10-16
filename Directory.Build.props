@@ -10,48 +10,13 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.16.0</VersionPrefix>
-    <PackageReleaseNotes>**New Features**
+    <VersionPrefix>0.17.0-beta.5</VersionPrefix>
+    <PackageReleaseNotes>**Bug Fixes**
 
-- **Roslyn analyzers now ship with the Termina library** ([#346](https://github.com/Aaronontheweb/termina/pull/346))
-  - Termina now includes its Roslyn analyzers in the package.
-  - The compiler runs the analyzers on your project and reports common layout node mistakes at build time.
-  - This change also fixes a node that Termina did not dispose when content switched.
-
-- **New analyzer TERMINA003 for layout node child disposal** ([#343](https://github.com/Aaronontheweb/termina/pull/343))
-  - TERMINA003 warns when code disposes a child layout node outside `Dispose()`.
-  - `Dispose()` destroys the node, so the node can no longer render or handle input.
-  - The analyzer tells you to call `OnDeactivate()` to switch content.
-
-- **New analyzer TERMINA004 for stateful node recreation** ([#337](https://github.com/Aaronontheweb/termina/pull/337))
-  - TERMINA004 warns when a dynamic layout factory creates a new stateful node on each run.
-  - A new node resets state such as the scroll position.
-  - The analyzer tells you to reuse the node, to invalidate a smaller child, or to use `KeyedDynamicLayoutNode`.
-
-**Bug Fixes**
-
-- **Fixed glyph corruption when word-wrap breaks a long word that contains wide characters** ([#351](https://github.com/Aaronontheweb/termina/pull/351))
-  - `StyledLine.SliceByColumns` no longer drops or reorders glyphs.
-  - The corruption occurred when a long word contained wide characters (CJK or emoji) across segments.
-  - Streamed text now keeps the correct content and order.
-
-- **Fixed the style of word-wrap space separators** ([#349](https://github.com/Aaronontheweb/termina/pull/349))
-  - Word-wrap space separators now inherit the whitespace style from the source text.
-  - A wrapped line keeps the correct foreground and background for the space between words.
-
-- **Guarded dynamic layout nodes against re-entrant Invalidate** ([#348](https://github.com/Aaronontheweb/termina/pull/348))
-  - `DynamicLayoutNode` and `KeyedDynamicLayoutNode` no longer re-enter `Invalidate()`.
-  - The guard prevents a stack overflow and inconsistent layout during a factory run.
-
-- **Fixed GridNode cell subscription tracking on content swap** ([#347](https://github.com/Aaronontheweb/termina/pull/347))
-  - `GridNode` now tracks cell subscriptions per content node.
-  - The grid deactivates the old subscriptions when it swaps a cell.
-  - This change prevents stale updates and resource leaks.
-
-**Documentation**
-
-- **Documented the built-in back navigation APIs** ([#350](https://github.com/Aaronontheweb/termina/pull/350))
-  - New documentation explains the back navigation APIs.</PackageReleaseNotes>
+- **Corrected text-area prompt history traversal** ([#368](https://github.com/Aaronontheweb/termina/issues/368))
+  - Up recalls prompt history from the first visual line and saves the current draft.
+  - Down restores the saved draft from the last visual line.
+  - Up and Down keep their current visual movement between multiline rows.</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->

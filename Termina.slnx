@@ -17,6 +17,7 @@
     <Project Path="demos/Termina.Demo.RegionBased/Termina.Demo.RegionBased.csproj" />
     <Project Path="demos/Termina.Demo.Streaming/Termina.Demo.Streaming.csproj" />
     <Project Path="demos/Termina.Demo.Wizard/Termina.Demo.Wizard.csproj" />
+    <Project Path="demos/Termina.Demo.Inline/Termina.Demo.Inline.csproj" />
     <Project Path="demos/Termina.Demo.KittyScroll/Termina.Demo.KittyScroll.csproj" />
     <Project Path="demos/Termina.Demo.Conformance/Termina.Demo.Conformance.csproj" />
   </Folder>

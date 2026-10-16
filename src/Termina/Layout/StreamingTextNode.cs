@@ -15,7 +15,7 @@ namespace Termina.Layout;
 /// StreamingTextNode wraps an IStreamingTextBuffer (either PersistedStreamBuffer or WindowedStreamBuffer)
 /// and renders the content with automatic word wrapping and optional scrolling.
 /// </remarks>
-public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollable
+public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollable, IPointerScrollable
 {
     private readonly IStreamingTextBuffer _buffer;
     private readonly Subject<Unit> _invalidated = new();
@@ -26,6 +26,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     // Cached viewport dimensions, updated during Render() and used by IScrollable
     private int _lastViewportWidth = 80;
     private int _lastViewportHeight = 24;
+    private ScreenBounds _lastRenderedBounds = ScreenBounds.Empty;
 
     // Tracked segment infrastructure
     private readonly List<ContentElement> _content = new();  // Ordered list of all content
@@ -625,6 +626,8 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
 
     void IScrollable.ScrollDown(int lines) => ScrollDown(lines);
 
+    ScreenBounds IPointerScrollable.LastRenderedBounds => _lastRenderedBounds;
+
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
@@ -636,6 +639,10 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     /// <inheritdoc />
     public override void Render(IRenderContext context, Rect bounds)
     {
+        _lastRenderedBounds = context is IScreenPositionedRenderContext positioned
+            ? positioned.GetScreenBounds(bounds)
+            : ScreenBounds.Empty;
+
         if (!bounds.HasArea)
             return;
 

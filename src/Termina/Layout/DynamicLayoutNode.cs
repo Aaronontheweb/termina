@@ -134,6 +134,8 @@ public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
         {
             newLayoutNode.OnActivate();
         }
+
+        RuntimeContext?.NotifyLayoutStructureChanged();
     }
 
     /// <summary>

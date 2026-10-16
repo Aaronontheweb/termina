@@ -9,7 +9,7 @@ namespace Termina.Terminal;
 /// Virtual terminal implementation for testing.
 /// Captures all output to an in-memory buffer that can be inspected.
 /// </summary>
-public sealed class VirtualTerminal : IAnsiTerminal
+public sealed class VirtualTerminal : IAnsiTerminal, IInlineTerminalControl
 {
     private char[,] _buffer;
     private string[,] _textBuffer;
@@ -113,12 +113,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
         if (text == "\n")
         {
             _cursorX = 0;
-            _cursorY++;
-            if (_cursorY >= Height)
-            {
-                _cursorY = Height - 1;
-                // Could scroll here if needed
-            }
+            AdvanceLine();
             return;
         }
 
@@ -235,6 +230,62 @@ public sealed class VirtualTerminal : IAnsiTerminal
     {
         _cursorX = _savedCursorX;
         _cursorY = _savedCursorY;
+    }
+
+    /// <inheritdoc />
+    public void MoveCursorUp(int rows)
+    {
+        if (rows > 0)
+            _cursorY = Math.Max(0, _cursorY - rows);
+    }
+
+    /// <inheritdoc />
+    public void MoveCursorDown(int rows)
+    {
+        if (rows > 0)
+            _cursorY = Math.Min(Height - 1, _cursorY + rows);
+    }
+
+    /// <inheritdoc />
+    public void MoveCursorToLineStart()
+    {
+        _cursorX = 0;
+    }
+
+    /// <inheritdoc />
+    public void EraseLine()
+    {
+        ClearRegion(0, _cursorY, Width, 1);
+    }
+
+    /// <inheritdoc />
+    public void WriteLineBreak()
+    {
+        _rawOutput.Add("\r\n");
+        _cursorX = 0;
+        AdvanceLine();
+    }
+
+    private void AdvanceLine()
+    {
+        _cursorY++;
+        if (_cursorY < Height)
+            return;
+
+        for (var y = 1; y < Height; y++)
+        {
+            for (var x = 0; x < Width; x++)
+            {
+                _buffer[y - 1, x] = _buffer[y, x];
+                _textBuffer[y - 1, x] = _textBuffer[y, x];
+                _continuation[y - 1, x] = _continuation[y, x];
+                _foreground[y - 1, x] = _foreground[y, x];
+                _background[y - 1, x] = _background[y, x];
+            }
+        }
+
+        ClearRegion(0, Height - 1, Width, 1);
+        _cursorY = Height - 1;
     }
 
     /// <inheritdoc />

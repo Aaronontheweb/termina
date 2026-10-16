@@ -51,6 +51,48 @@ public class LayoutRuntimeContextTests
     }
 
     [Fact]
+    public void ReactiveLayoutNode_AfterReactivation_NotifiesStructuralChange()
+    {
+        var structureChanges = 0;
+        var timeProvider = new FakeTimeProvider();
+        var context = new LayoutRuntimeContext(
+            new TestFrameProvider(),
+            timeProvider,
+            () => { },
+            () => structureChanges++);
+        var source = new Subject<ILayoutNode>();
+        using var node = new ReactiveLayoutNode(source);
+        LayoutRuntimeContextInjector.Apply(node, context);
+
+        node.OnDeactivate();
+        node.OnActivate();
+        source.OnNext(new TextNode("replacement"));
+
+        Assert.Equal(1, structureChanges);
+    }
+
+    [Fact]
+    public void GenericReactiveLayoutNode_AfterReactivation_NotifiesStructuralChange()
+    {
+        var structureChanges = 0;
+        var timeProvider = new FakeTimeProvider();
+        var context = new LayoutRuntimeContext(
+            new TestFrameProvider(),
+            timeProvider,
+            () => { },
+            () => structureChanges++);
+        var source = new Subject<int>();
+        using var node = new ReactiveLayoutNode<int>(source, value => new TextNode(value.ToString()));
+        LayoutRuntimeContextInjector.Apply(node, context);
+
+        node.OnDeactivate();
+        node.OnActivate();
+        source.OnNext(1);
+
+        Assert.Equal(1, structureChanges);
+    }
+
+    [Fact]
     public void ContainerNode_AppliesContextToChildAddedAfterContext()
     {
         var context = CreateContext();

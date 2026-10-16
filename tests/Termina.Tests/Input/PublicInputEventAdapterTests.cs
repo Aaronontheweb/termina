@@ -112,10 +112,14 @@ public class PublicInputEventAdapterTests
             PointerAction.Wheel,
             X: 3,
             Y: 4,
-            button));
+            button,
+            KeyModifiers.Control));
 
         var scroll = Assert.IsType<MouseScrollEvent>(Assert.Single(events));
         Assert.Equal(expectedDelta, scroll.Delta);
+        Assert.Equal(2, scroll.X);
+        Assert.Equal(3, scroll.Y);
+        Assert.Equal(ConsoleModifiers.Control, scroll.Modifiers);
     }
 
     [Fact]

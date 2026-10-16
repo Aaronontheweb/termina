@@ -23,6 +23,7 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     ];
     private int _cursorPosition;
     private int _selectionStart = -1;
+    private string? _semanticContent;
     private bool _showInlineIndicator;
     private bool _hasFocus;
     private bool _disposed;
@@ -37,6 +38,15 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     }
 
     public string Content { get; private set; }
+
+    /// <summary>
+    /// Gets the complete text used for a full-content copy action.
+    /// </summary>
+    /// <remarks>
+    /// This value defaults to <see cref="Content"/>. A text selection still copies
+    /// the selected display text.
+    /// </remarks>
+    public string SemanticContent => _semanticContent ?? Content;
 
     public string? Hint { get; private set; } = "Press Enter to copy";
 
@@ -90,6 +100,20 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         if (_selectionStart > Content.Length)
             _selectionStart = -1;
         Invalidate();
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the complete text used for a full-content copy action.
+    /// </summary>
+    /// <remarks>
+    /// Use this value when the display text contains decoration, truncation, or
+    /// terminal control data that the clipboard text must omit.
+    /// </remarks>
+    public CopyableTextNode WithSemanticContent(string semanticContent)
+    {
+        ArgumentNullException.ThrowIfNull(semanticContent);
+        _semanticContent = semanticContent;
         return this;
     }
 
@@ -182,7 +206,7 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         }
         else if (IsCopyBinding(key))
         {
-            CopySelectionOrContent();
+            TryCopy();
             handled = true;
         }
         else
@@ -268,13 +292,18 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         base.Dispose();
     }
 
-    private bool CopySelectionOrContent()
+    /// <summary>
+    /// Copies the selected display text, or the complete semantic content when no
+    /// selection exists.
+    /// </summary>
+    /// <returns>True when at least one clipboard transport reported success.</returns>
+    public bool TryCopy()
     {
-        var textToCopy = HasSelection ? SelectedText : Content;
+        var textToCopy = HasSelection ? SelectedText : SemanticContent;
         TerminaTrace.Input.Info(this, "CopyableTextNode copy requested: contentLength={0}, selectionLength={1}", Content.Length, textToCopy.Length);
         var success = _clipboardService.Copy(textToCopy);
         ShowFeedback(success);
-        return true;
+        return success;
     }
 
     private bool IsCopyBinding(ConsoleKeyInfo key)

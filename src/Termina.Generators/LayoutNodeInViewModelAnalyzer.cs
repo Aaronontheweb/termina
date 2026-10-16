@@ -35,7 +35,8 @@ public sealed class LayoutNodeInViewModelAnalyzer : DiagnosticAnalyzer
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "ViewModels in the MVVM pattern should contain application state and business logic, not UI components. Layout nodes (ILayoutNode implementations) should be created in the Page class's BuildLayout() method. This separation ensures proper testability and maintains a clear boundary between UI and application logic.");
+        description: "ViewModels in the MVVM pattern should contain application state and business logic, not UI components. Layout nodes (ILayoutNode implementations) should be created in the Page class's BuildLayout() method. This separation ensures proper testability and maintains a clear boundary between UI and application logic.",
+        helpLinkUri: "https://aaronstannard.com/termina/analyzers/termina002");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics
         => ImmutableArray.Create(Rule);

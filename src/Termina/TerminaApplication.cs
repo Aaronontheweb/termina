@@ -16,6 +16,8 @@ using Termina.Reactive;
 using Termina.Rendering;
 using Termina.Routing;
 using Termina.Terminal;
+using InputMouseButton = Termina.Input.MouseButton;
+using InputMouseEventType = Termina.Input.MouseEventType;
 
 namespace Termina;
 
@@ -37,10 +39,11 @@ namespace Termina;
 /// ViewModels subscribe to Input observable to handle keyboard events.
 /// </para>
 /// </remarks>
-public sealed class TerminaApplication
+public sealed class TerminaApplication : IInlineOutput
 {
     private readonly IAnsiTerminal _terminal;
     private readonly DiffingTerminal? _diffingTerminal;
+    private readonly InlineTerminal? _inlineTerminal;
     private readonly TerminaRuntimeOptions _runtimeOptions;
     private readonly IServiceProvider? _serviceProvider;
     private readonly Channel<object> _eventChannel;
@@ -66,8 +69,21 @@ public sealed class TerminaApplication
     private static readonly TimeSpan CtrlCDoublePressWindow = TimeSpan.FromSeconds(2);
     private bool _rawInputActive;
     private bool _kittyKeyboardPushed;
+    private bool _mouseEnabledByApp;
     private bool _wheelScrollEnabledByApp;
     private int _pendingNavigationRequests;
+
+    // 1 when RequestRedraw ran after the start of the last render. An ApplicationRedrawRequested
+    // event that finds 0 asks for a frame that a later render already drew, so the loop does not
+    // render again.
+    private int _redrawPending;
+
+    // 1 after RunAsync stopped its loop. Work that a caller awaits and that arrives after this
+    // point cannot run, so InvokeAsync cancels it.
+    private int _loopStopped;
+    private TerminalInputCapabilities _inputCapabilities = new(
+        TerminalCapabilityAvailability.Unknown,
+        TerminalInputCapabilitySource.None);
 
     /// <summary>
     /// Creates a new Termina application.
@@ -99,31 +115,47 @@ public sealed class TerminaApplication
         TerminaRuntimeOptions? runtimeOptions = null,
         IServiceProvider? serviceProvider = null)
     {
+        _runtimeOptions = runtimeOptions ?? new TerminaRuntimeOptions();
+        ValidateRuntimeOptions(_runtimeOptions);
+
         ObservableSystem.RegisterUnhandledExceptionHandler(ex =>
         {
             TerminaTrace.Reactive.Error("ObservableSystem", "Unhandled observable error: {0}", ex);
         });
 
-        // Wrap terminal with DiffingTerminal for flicker-free rendering
-        // unless it's already a DiffingTerminal or VirtualTerminal (for tests)
-        if (terminal is DiffingTerminal diffing)
+        if (_runtimeOptions.PresentationMode == TerminalPresentationMode.Inline)
+        {
+            if (terminal is not IInlineTerminalControl inlineControl)
+            {
+                throw new InvalidOperationException(
+                    $"Inline mode requires a terminal that implements {nameof(IInlineTerminalControl)}.");
+            }
+
+            _inlineTerminal = new InlineTerminal(terminal, inlineControl);
+            _terminal = _inlineTerminal;
+            _diffingTerminal = null;
+        }
+        // Wrap the full-screen terminal for flicker-free output.
+        else if (terminal is DiffingTerminal diffing)
         {
             _terminal = terminal;
             _diffingTerminal = diffing;
+            _inlineTerminal = null;
         }
         else if (terminal is VirtualTerminal)
         {
-            // Don't wrap VirtualTerminal - it's used for testing
+            // Keep direct virtual output for current full-screen tests.
             _terminal = terminal;
             _diffingTerminal = null;
+            _inlineTerminal = null;
         }
         else
         {
             _diffingTerminal = new DiffingTerminal(terminal);
             _terminal = _diffingTerminal;
+            _inlineTerminal = null;
         }
 
-        _runtimeOptions = runtimeOptions ?? new TerminaRuntimeOptions();
         _serviceProvider = serviceProvider;
         _eventChannel = Channel.CreateUnbounded<object>();
         _renderFrameProvider = new TerminaRenderFrameProvider(
@@ -149,6 +181,11 @@ public sealed class TerminaApplication
     /// Observable stream of input events. ViewModels subscribe to this.
     /// </summary>
     public Observable<IInputEvent> Input => _inputSubject.AsObservable();
+
+    /// <summary>
+    /// Gets the latest capabilities of the active terminal input path.
+    /// </summary>
+    public TerminalInputCapabilities InputCapabilities => _inputCapabilities;
 
     /// <summary>
     /// Gets the R3 frame provider bound to this application's render loop.
@@ -386,6 +423,11 @@ public sealed class TerminaApplication
     /// <summary>
     /// Request graceful shutdown of the application.
     /// </summary>
+    /// <remarks>
+    /// The loop stops at once. It does not run work that is still in the queue, also work that
+    /// <see cref="Post"/> or <see cref="InvokeAsync"/> queued before this call. A task that
+    /// <see cref="InvokeAsync"/> returned for such work ends as canceled.
+    /// </remarks>
     public void Shutdown()
     {
         _shutdownCts?.Cancel();
@@ -394,15 +436,65 @@ public sealed class TerminaApplication
     /// <summary>
     /// Request a UI redraw. Used by ViewModels when async content changes.
     /// </summary>
+    /// <remarks>
+    /// Change the state before you call this method. The loop can merge this request with a redraw
+    /// request that is already in the queue. A render that runs between a call that comes first and
+    /// the state change can draw the old state, and the loop then skips the merged request.
+    /// </remarks>
     public void RequestRedraw()
     {
-        // Push a redraw event to the event channel - this will trigger re-render
-        _eventChannel.Writer.TryWrite(RedrawRequested.Instance);
+        // Set the flag before the event is queued, so the loop always sees the flag when it reads the event.
+        Volatile.Write(ref _redrawPending, 1);
+
+        // The loop can skip this event when a later render already drew the change. A
+        // RedrawRequested.Instance that an input source writes always causes a render.
+        _eventChannel.Writer.TryWrite(ApplicationRedrawRequested.Instance);
+    }
+
+    /// <inheritdoc />
+    public ValueTask CommitAsync(ILayoutNode content, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        if (_inlineTerminal is null)
+            throw new InvalidOperationException("Stable content commits require inline presentation mode.");
+
+        if (_shutdownCts is null)
+            throw new InvalidOperationException("The Termina application must be active before it can commit inline output.");
+
+        if (cancellationToken.IsCancellationRequested)
+            return new ValueTask(Task.FromCanceled(cancellationToken));
+
+        var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _shutdownCts.Token);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var registration = linkedCancellation.Token.Register(
+            () => completion.TrySetCanceled(linkedCancellation.Token));
+        var request = new InlineCommitRequested(
+            content,
+            completion,
+            linkedCancellation,
+            registration);
+
+        if (!_eventChannel.Writer.TryWrite(request))
+        {
+            registration.Dispose();
+            linkedCancellation.Dispose();
+            throw new InvalidOperationException("Unable to post an inline commit to the Termina event loop.");
+        }
+
+        return new ValueTask(completion.Task);
     }
 
     /// <summary>
     /// Enqueues work to run on the Termina render loop thread.
     /// </summary>
+    /// <remarks>
+    /// The work does not run when the loop stops first. A stop drops all work that is still in the
+    /// queue, also work that this method queued before a <see cref="Shutdown"/> call. Work that
+    /// this method queues after the loop stopped does not run.
+    /// </remarks>
     /// <param name="action">The work to run on the loop.</param>
     public void Post(Action action)
     {
@@ -416,6 +508,12 @@ public sealed class TerminaApplication
     /// Enqueues work to run on the Termina render loop thread and returns a task that
     /// completes when the work has run.
     /// </summary>
+    /// <remarks>
+    /// The work does not run when the loop stops first. A stop drops all work that is still in the
+    /// queue, also work that was queued before a <see cref="Shutdown"/> call. The returned task then
+    /// ends as canceled (<see cref="TaskCanceledException"/>), even when the token of the caller is
+    /// not canceled.
+    /// </remarks>
     /// <param name="action">The work to run on the loop.</param>
     /// <param name="cancellationToken">Cancels the work if it has not run yet.</param>
     public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
@@ -433,9 +531,15 @@ public sealed class TerminaApplication
                 () => completion.TrySetCanceled(cancellationToken));
         }
 
+        void Abandon()
+        {
+            completion.TrySetCanceled();
+            cancellationRegistration.Dispose();
+        }
+
         try
         {
-            Post(() =>
+            var work = new LoopWorkRequested(() =>
             {
                 try
                 {
@@ -458,13 +562,21 @@ public sealed class TerminaApplication
                 {
                     cancellationRegistration.Dispose();
                 }
-            });
+            }, Abandon);
+
+            if (!_eventChannel.Writer.TryWrite(work))
+                throw new InvalidOperationException("Unable to post work to the Termina event loop.");
         }
         catch
         {
             cancellationRegistration.Dispose();
             throw;
         }
+
+        // The loop drains the queue when it stops. Work written after that drain is not drained,
+        // so cancel it here. Interlocked gives a full fence between the write above and this read.
+        if (Interlocked.CompareExchange(ref _loopStopped, 0, 0) != 0)
+            Abandon();
 
         return completion.Task;
     }
@@ -530,17 +642,25 @@ public sealed class TerminaApplication
 
             var kittyFlags = GetKittyKeyboardFlags();
             var kittyReportAllKeysVisible = _rawInputActive && (kittyFlags & 8) != 0;
+            _inputCapabilities = InitialInputCapabilities(platformConsole.Capabilities, kittyFlags);
 
             _inputSources.Add(new PlatformInputSource(
                 platformConsole,
                 new PlatformInputConfiguration(_rawInputActive, kittyReportAllKeysVisible)));
             TerminaTrace.Input.Debug(this, "Added PlatformInputSource");
         }
+        else
+        {
+            _inputCapabilities = new TerminalInputCapabilities(
+                TerminalCapabilityAvailability.Unknown,
+                TerminalInputCapabilitySource.CustomInput);
+        }
 
         // Create linked token - cancelled by either external token OR Shutdown()
         TerminaTrace.Input.Debug(this, "Creating linked cancellation token");
         _shutdownCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var linkedToken = _shutdownCts.Token;
+        Interlocked.Exchange(ref _loopStopped, 0);
         TerminaTrace.Input.Debug(this, "Linked token created");
 
         // Start each input source - they push to the shared channel
@@ -550,113 +670,146 @@ public sealed class TerminaApplication
             .ToList();
 
         TerminaTrace.Input.Debug(this, "Input tasks started, count={0}", inputTasks.Count);
-
         try
         {
-            // Enter alternate screen and hide cursor
-            TerminaTrace.Render.Debug(this, "About to enter alternate screen");
-            _terminal.EnterAlternateScreen();
-            _terminal.SetCursorVisible(false);
-            _terminal.Flush();
-            TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden, flushed");
-
-            var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
-            Console.Write(AnsiCodes.EnableBracketedPaste);
-
-            // When running inside tmux, the inner-pane ESC[?2004h above is intercepted by tmux
-            // and never reaches the outer terminal. The outer terminal therefore does not know
-            // to wrap Ctrl+Shift+V pastes with ESC[200~...ESC[201~. Use a DCS passthrough to
-            // also enable bracketed paste in the outer terminal.
-            // Requires: set -g allow-passthrough on  in ~/.tmux.conf (tmux 3.3+).
-            if (inTmux)
+            try
             {
-                Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.EnableBracketedPaste));
+                if (_runtimeOptions.PresentationMode == TerminalPresentationMode.FullScreen)
+                {
+                    TerminaTrace.Render.Debug(this, "About to enter alternate screen");
+                    _terminal.EnterAlternateScreen();
+                }
+
+                _terminal.SetCursorVisible(false);
+                _terminal.Flush();
+                TerminaTrace.Render.Debug(this, "Terminal presentation mode entered, cursor hidden, flushed");
+
+                var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
+                Console.Write(AnsiCodes.EnableBracketedPaste);
+
+                // When running inside tmux, the inner-pane ESC[?2004h above is intercepted by tmux
+                // and never reaches the outer terminal. The outer terminal therefore does not know
+                // to wrap Ctrl+Shift+V pastes with ESC[200~...ESC[201~. Use a DCS passthrough to
+                // also enable bracketed paste in the outer terminal.
+                // Requires: set -g allow-passthrough on  in ~/.tmux.conf (tmux 3.3+).
+                if (inTmux)
+                {
+                    Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.EnableBracketedPaste));
+                }
+
+                var kittyFlags = GetKittyKeyboardFlags();
+                _kittyKeyboardPushed = KittyKeyboardEnhancement.TryEnter(this, kittyFlags, inTmux);
+                if (_rawInputActive && kittyFlags > 0)
+                {
+                    if (!_kittyKeyboardPushed || !KittyKeyboardEnhancement.TryQuery(this))
+                    {
+                        _inputCapabilities = new TerminalInputCapabilities(
+                            TerminalCapabilityAvailability.Unavailable,
+                            TerminalInputCapabilitySource.LegacyTerminal);
+                    }
+                }
+
+                _inputSubject.OnNext(new TerminalInputCapabilitiesChanged(_inputCapabilities));
+
+                if (_runtimeOptions.ScrollInputMode == ScrollInputMode.AlternateScroll && _rawInputActive)
+                {
+                    // Alternate-scroll preserves native selection/clipboard behavior but only works
+                    // correctly when the input parser sees raw byte sequences.
+                    _terminal.EnableWheelScroll();
+                    _wheelScrollEnabledByApp = true;
+                    _mouseEnabledByApp = false;
+                }
+                else if (_runtimeOptions.ScrollInputMode != ScrollInputMode.NativeTerminal)
+                {
+                    _terminal.EnableMouse();
+                    _mouseEnabledByApp = true;
+                    _wheelScrollEnabledByApp = false;
+                }
+                else
+                {
+                    _mouseEnabledByApp = false;
+                    _wheelScrollEnabledByApp = false;
+                }
+
+                _terminal.Flush();
+
+                // Initial render
+                TerminaTrace.Render.Debug(this, "Starting initial render");
+                if (!HasPendingNavigationRequests())
+                    RenderCurrentPage();
+                TerminaTrace.Render.Debug(this, "Initial render complete");
+
+                // Single-threaded event loop - all input sources merge here.
+                // WaitToReadAsync observes the token for each batch. ReadAllAsync does not
+                // observe it while the queue is not empty, so a steady producer kept the loop
+                // alive after Shutdown.
+                while (await _eventChannel.Reader.WaitToReadAsync(linkedToken))
+                {
+                    ProcessQueuedEvents(linkedToken);
+                }
             }
-
-            var kittyFlags = GetKittyKeyboardFlags();
-            _kittyKeyboardPushed = KittyKeyboardEnhancement.TryEnter(this, kittyFlags, inTmux);
-
-            if (_runtimeOptions.ScrollInputMode == ScrollInputMode.AlternateScroll && _rawInputActive)
+            catch (OperationCanceledException)
             {
-                // Alternate-scroll preserves native selection/clipboard behavior but only works
-                // correctly when the input parser sees raw byte sequences.
-                _terminal.EnableWheelScroll();
-                _wheelScrollEnabledByApp = true;
+                // Expected on shutdown
             }
-            else
+            finally
             {
-                _terminal.EnableMouse();
-                _wheelScrollEnabledByApp = false;
+                _shutdownCts.Cancel();
+                var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
+
+                // Disable bracketed paste and kitty keyboard protocol before restoring terminal
+                if (_kittyKeyboardPushed)
+                {
+                    KittyKeyboardEnhancement.TryLeave(inTmux);
+                    _kittyKeyboardPushed = false;
+                }
+
+                Console.Write(AnsiCodes.DisableBracketedPaste);
+                if (inTmux)
+                {
+                    Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.DisableBracketedPaste));
+                }
+
+                if (_wheelScrollEnabledByApp)
+                    _terminal.DisableWheelScroll();
+                if (_mouseEnabledByApp)
+                    _terminal.DisableMouse();
+
+                _inlineTerminal?.ClearLiveRegion();
+                _terminal.SetCursorVisible(true);
+                _terminal.ResetColors();
+                if (_runtimeOptions.PresentationMode == TerminalPresentationMode.FullScreen)
+                    _terminal.ExitAlternateScreen();
+                _terminal.Flush();
+
+                if (_runtimeOptions.PresentationMode == TerminalPresentationMode.FullScreen)
+                    Console.WriteLine();
+
+                // Complete the input subject
+                _inputSubject.OnCompleted();
+
+                // Restore and dispose platform console
+                platformConsole?.Dispose();
             }
-
-            _terminal.Flush();
-
-            // Initial render
-            TerminaTrace.Render.Debug(this, "Starting initial render");
-            if (!HasPendingNavigationRequests())
-                RenderCurrentPage();
-            TerminaTrace.Render.Debug(this, "Initial render complete");
-
-            // Single-threaded event loop - all input sources merge here
-            await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))
-            {
-                ProcessEventAndMaybeRender(evt);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected on shutdown
         }
         finally
         {
-            var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
-
-            // Disable bracketed paste and kitty keyboard protocol before restoring terminal
-            if (_kittyKeyboardPushed)
+            // Wait for all input sources to complete.
+            try
             {
-                KittyKeyboardEnhancement.TryLeave(inTmux);
-                _kittyKeyboardPushed = false;
+                await Task.WhenAll(inputTasks);
             }
-
-            Console.Write(AnsiCodes.DisableBracketedPaste);
-            if (inTmux)
+            catch (OperationCanceledException)
             {
-                Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.DisableBracketedPaste));
+                // Expected on shutdown
             }
-
-            if (_wheelScrollEnabledByApp)
-                _terminal.DisableWheelScroll();
-            else
-                _terminal.DisableMouse();
-
-            _terminal.SetCursorVisible(true);
-            _terminal.ResetColors();
-            _terminal.ExitAlternateScreen();
-            _terminal.Flush();
-
-            // Clear any partial line artifacts
-            Console.WriteLine();
-
-            // Complete the input subject
-            _inputSubject.OnCompleted();
-
-            // Restore and dispose platform console
-            platformConsole?.Dispose();
-        }
-
-        // Wait for all input sources to complete
-        try
-        {
-            await Task.WhenAll(inputTasks);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected on shutdown
-        }
-        finally
-        {
-            _shutdownCts.Dispose();
-            _shutdownCts = null;
+            finally
+            {
+                Interlocked.Exchange(ref _loopStopped, 1);
+                AbandonQueuedEvents();
+                _shutdownCts.Dispose();
+                _shutdownCts = null;
+            }
         }
     }
 
@@ -666,6 +819,10 @@ public sealed class TerminaApplication
     private void ProcessEvent(object evt)
     {
         TerminaTrace.Input.Trace(this, "ProcessEvent: {0}", evt.GetType().Name);
+
+        // Subscribers see every redraw request as the public event.
+        if (evt is ApplicationRedrawRequested)
+            evt = RedrawRequested.Instance;
 
         // Framework-level Ctrl+C handling: first press shows a hint, second press
         // within CtrlCDoublePressWindow shuts the app down. We scope this to raw-input
@@ -702,6 +859,29 @@ public sealed class TerminaApplication
         // Handle system events
         switch (evt)
         {
+            case KittyKeyboardFlagsReported keyboardFlags:
+                var supportsModifiedEnter = (keyboardFlags.Flags & 9) != 0;
+                PublishInputCapabilities(new TerminalInputCapabilities(
+                    supportsModifiedEnter
+                        ? TerminalCapabilityAvailability.Available
+                        : TerminalCapabilityAvailability.Unavailable,
+                    TerminalInputCapabilitySource.KittyKeyboardProtocol));
+                return;
+
+            case PrimaryDeviceAttributesReported:
+                if (_inputCapabilities.ModifiedEnterKeySupport == TerminalCapabilityAvailability.Unknown
+                    && _inputCapabilities.Source == TerminalInputCapabilitySource.KittyKeyboardProtocol)
+                {
+                    PublishInputCapabilities(new TerminalInputCapabilities(
+                        TerminalCapabilityAvailability.Unavailable,
+                        TerminalInputCapabilitySource.LegacyTerminal));
+                }
+                return;
+
+            case TerminalInputCapabilitiesChanged capabilitiesChanged:
+                _inputCapabilities = capabilitiesChanged.Capabilities;
+                break;
+
             case ShutdownRequested:
                 TerminaTrace.Page.Info(this, "ShutdownRequested received");
                 Shutdown();
@@ -765,15 +945,22 @@ public sealed class TerminaApplication
 
             case MouseScrollEvent mouseScroll:
                 const int linesPerTick = 3;
-                if (_focusManager.CurrentFocus is IScrollable scrollable)
+                if (RouteMouseScroll(mouseScroll, linesPerTick))
+                    return;
+                break; // No scroll target — fall through to the ViewModel input observable
+
+            case MouseEvent { EventType: InputMouseEventType.Scroll } mouseEvent:
+                var adaptedScroll = new MouseScrollEvent(
+                    mouseEvent.Button == InputMouseButton.WheelUp ? +1 : -1)
                 {
-                    if (mouseScroll.Delta > 0)
-                        scrollable.ScrollUp(linesPerTick);
-                    else
-                        scrollable.ScrollDown(linesPerTick);
-                    return; // Handled by focused scrollable
-                }
-                break; // No focused scrollable — fall through to ViewModel input observable
+                    X = mouseEvent.X,
+                    Y = mouseEvent.Y,
+                    Modifiers = mouseEvent.Modifiers,
+                };
+                if (mouseEvent.Button is InputMouseButton.WheelUp or InputMouseButton.WheelDown
+                    && RouteMouseScroll(adaptedScroll, linesPerTick))
+                    return;
+                break; // Preserve the current public MouseEvent path when no target handles it
         }
 
         // Route input events: Page (capture) -> Focus Manager (bubble) -> ViewModel
@@ -809,16 +996,118 @@ public sealed class TerminaApplication
         }
     }
 
-    private void ProcessEventAndMaybeRender(object evt)
+    /// <summary>
+    /// Processes, in order, the events that are in the queue now, and then renders the page once.
+    /// </summary>
+    /// <remarks>
+    /// A render draws the whole page, so one render after a batch shows the same final state as one
+    /// render after each event. When a render takes longer than events arrive (for example a very
+    /// long line in a text area, with the cursor blink and redraw requests), a render after each
+    /// event makes the queue grow without limit, and work posted to the loop, such as a shutdown,
+    /// never runs. The batch holds only the events that were queued when it started. Events that
+    /// arrive during the batch go to the next batch, so a steady producer cannot postpone the render.
+    /// </remarks>
+    internal void ProcessQueuedEvents(CancellationToken cancellationToken)
     {
+        var reader = _eventChannel.Reader;
+        var remaining = Math.Max(1, reader.Count);
+        var renderNeeded = false;
+
+        // Stop at a shutdown request: the events after it must not run on a closing application.
+        while (remaining-- > 0
+               && !cancellationToken.IsCancellationRequested
+               && reader.TryRead(out var evt))
+        {
+            renderNeeded = ProcessQueuedEvent(evt, renderNeeded);
+        }
+
+        // Render after a shutdown request too, so the last frame shows every processed event.
+        RenderIfNeeded(renderNeeded);
+    }
+
+    private void ProcessEventAndMaybeRender(object evt) =>
+        RenderIfNeeded(ProcessQueuedEvent(evt, renderNeeded: false));
+
+    /// <summary>
+    /// Processes one event and returns whether the page needs a render after it.
+    /// </summary>
+    private bool ProcessQueuedEvent(object evt, bool renderNeeded)
+    {
+        // An inline commit renders the page itself.
+        if (evt is InlineCommitRequested inlineCommit)
+        {
+            ProcessInlineCommit(inlineCommit);
+            return renderNeeded;
+        }
+
         ProcessEvent(evt);
 
-        // If this event enqueued a navigation, do not render the page that is
-        // one event-loop turn away from being replaced.
-        if (HasPendingNavigationRequests())
-            return;
+        return renderNeeded
+            || evt is not ApplicationRedrawRequested
+            || Volatile.Read(ref _redrawPending) != 0;
+    }
 
-        RenderCurrentPage();
+    private void RenderIfNeeded(bool renderNeeded)
+    {
+        // If an event enqueued a navigation, do not render the page that is
+        // one event-loop turn away from being replaced.
+        if (renderNeeded && !HasPendingNavigationRequests())
+            RenderCurrentPage();
+    }
+
+    /// <summary>
+    /// Empties the queue after the loop stopped. A batch stops at a shutdown request, so events can
+    /// stay in the queue. This cancels each task that a caller awaits for one of them, and releases
+    /// the cancellation resources of each inline commit.
+    /// </summary>
+    private void AbandonQueuedEvents()
+    {
+        while (_eventChannel.Reader.TryRead(out var evt))
+        {
+            switch (evt)
+            {
+                case LoopWorkRequested { Abandon: { } abandon }:
+                    abandon();
+                    break;
+
+                case InlineCommitRequested commit:
+                    commit.Completion.TrySetCanceled();
+                    commit.Registration.Dispose();
+                    commit.Cancellation.Dispose();
+                    break;
+
+                case NavigationRequested:
+                    Interlocked.Decrement(ref _pendingNavigationRequests);
+                    break;
+            }
+        }
+    }
+
+    private void ProcessInlineCommit(InlineCommitRequested request)
+    {
+        try
+        {
+            if (request.Completion.Task.IsCompleted)
+                return;
+
+            request.Cancellation.Token.ThrowIfCancellationRequested();
+            _inlineTerminal!.Commit(request.Content);
+            RenderCurrentPage();
+            request.Completion.TrySetResult();
+        }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested)
+        {
+            request.Completion.TrySetCanceled(request.Cancellation.Token);
+        }
+        catch (Exception ex)
+        {
+            request.Completion.TrySetException(ex);
+        }
+        finally
+        {
+            request.Registration.Dispose();
+            request.Cancellation.Dispose();
+        }
     }
 
     private bool HasPendingNavigationRequests() =>
@@ -865,7 +1154,97 @@ public sealed class TerminaApplication
         return null;
     }
 
+    private bool RouteMouseScroll(MouseScrollEvent mouseScroll, int linesPerTick)
+    {
+        var scrollable = mouseScroll is { X: { } x, Y: { } y }
+            ? FindScrollableAt(GetCurrentLayoutRoot(), x, y)
+            : null;
+        scrollable ??= _focusManager.CurrentFocus as IScrollable;
+
+        if (scrollable is null)
+            return false;
+
+        if (mouseScroll.Delta > 0)
+            scrollable.ScrollUp(linesPerTick);
+        else if (mouseScroll.Delta < 0)
+            scrollable.ScrollDown(linesPerTick);
+
+        return mouseScroll.Delta != 0;
+    }
+
+    private static IScrollable? FindScrollableAt(ILayoutNode? node, int x, int y)
+    {
+        if (node is null)
+            return null;
+
+        var children = node switch
+        {
+            LayoutNode layoutNode => layoutNode.GetChildNodes(),
+            IContainerNode container => container.Children,
+            _ => Enumerable.Empty<ILayoutNode>()
+        };
+
+        foreach (var child in children.Reverse())
+        {
+            if (FindScrollableAt(child, x, y) is { } childTarget)
+                return childTarget;
+        }
+
+        return node is IPointerScrollable pointerScrollable
+            && pointerScrollable.LastRenderedBounds.Contains(x, y)
+                ? pointerScrollable
+                : null;
+    }
+
     private int GetKittyKeyboardFlags() => (int)_runtimeOptions.KittyKeyboardMode;
+
+    private static TerminalInputCapabilities InitialInputCapabilities(
+        TerminalCapabilities platformCapabilities,
+        int kittyFlags)
+    {
+        if (platformCapabilities.PreservesKeyModifiers)
+        {
+            return new TerminalInputCapabilities(
+                TerminalCapabilityAvailability.Available,
+                TerminalInputCapabilitySource.NativeConsole);
+        }
+
+        return kittyFlags > 0 && platformCapabilities.RawInputActive
+            ? new TerminalInputCapabilities(
+                TerminalCapabilityAvailability.Unknown,
+                TerminalInputCapabilitySource.KittyKeyboardProtocol)
+            : new TerminalInputCapabilities(
+                TerminalCapabilityAvailability.Unavailable,
+                TerminalInputCapabilitySource.LegacyTerminal);
+    }
+
+    private void PublishInputCapabilities(TerminalInputCapabilities capabilities)
+    {
+        if (_inputCapabilities == capabilities)
+            return;
+
+        _inputCapabilities = capabilities;
+        _inputSubject.OnNext(new TerminalInputCapabilitiesChanged(capabilities));
+    }
+
+    private static void ValidateRuntimeOptions(TerminaRuntimeOptions options)
+    {
+        if (options.PresentationMode == TerminalPresentationMode.Inline
+            && options.ScrollInputMode != ScrollInputMode.NativeTerminal)
+        {
+            throw new ArgumentException(
+                $"{nameof(TerminalPresentationMode.Inline)} mode requires {nameof(ScrollInputMode.NativeTerminal)} scroll input.",
+                nameof(options));
+        }
+
+        if (options.PresentationMode == TerminalPresentationMode.FullScreen
+            && options.ScrollInputMode == ScrollInputMode.NativeTerminal)
+        {
+            throw new ArgumentException(
+                $"{nameof(ScrollInputMode.NativeTerminal)} scroll input requires {nameof(TerminalPresentationMode.Inline)} mode.",
+                nameof(options));
+        }
+    }
 
     private bool ShouldInterceptCtrlC() => _runtimeOptions.CtrlCHandlingMode switch
     {
@@ -884,6 +1263,10 @@ public sealed class TerminaApplication
     /// </remarks>
     private void RenderCurrentPage()
     {
+        // This render draws every change that was requested before this point. Clear the flag
+        // first, so that a request during the render still causes one more render.
+        Interlocked.Exchange(ref _redrawPending, 0);
+
         var layoutRoot = GetCurrentLayoutRoot() ?? new TextNode("No page active");
         if (_toastOverlay != null)
         {
@@ -983,7 +1366,29 @@ public sealed class TerminaApplication
         _renderFrameProvider.Dispose();
     }
 
-    private sealed record LoopWorkRequested(Action Action);
+    /// <param name="Action">The work to run on the loop.</param>
+    /// <param name="Abandon">Settles the caller's task when the loop stops before the work runs.</param>
+    private sealed record LoopWorkRequested(Action Action, Action? Abandon = null);
+
+    /// <summary>
+    /// The redraw event that <see cref="RequestRedraw"/> queues. The loop tells it apart from a
+    /// <see cref="RedrawRequested"/> that an input source writes, because only this event can be
+    /// skipped when the redraw flag is clear.
+    /// </summary>
+    private sealed class ApplicationRedrawRequested
+    {
+        public static readonly ApplicationRedrawRequested Instance = new();
+
+        private ApplicationRedrawRequested()
+        {
+        }
+    }
+
+    private sealed record InlineCommitRequested(
+        ILayoutNode Content,
+        TaskCompletionSource Completion,
+        CancellationTokenSource Cancellation,
+        CancellationTokenRegistration Registration);
 
     private sealed class RenderFrameRequested
     {

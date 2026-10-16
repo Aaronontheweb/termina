@@ -53,17 +53,20 @@ public static class TerminaServiceCollectionExtensions
         configure(builder);
 
         // Register IAnsiTerminal if not already registered
-        services.TryAddSingleton<IAnsiTerminal, AnsiTerminal>();
+        services.TryAddSingleton<IAnsiTerminal>(_ => new AnsiTerminal(useAlternateScreen: false));
         services.TryAddSingleton<IToastService, ToastService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IClipboardTransport, Osc52ClipboardTransport>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IClipboardTransport, TmuxClipboardTransport>());
         services.TryAddSingleton<IClipboardService, TerminalClipboardService>();
+        services.TryAddSingleton<InlineOutputAdapter>();
+        services.TryAddSingleton<IInlineOutput>(sp => sp.GetRequiredService<InlineOutputAdapter>());
 
         // Register TerminaApplication
         services.AddSingleton<TerminaApplication>(sp =>
         {
             var terminal = sp.GetRequiredService<IAnsiTerminal>();
             var app = new TerminaApplication(terminal, builder.RuntimeOptions, sp);
+            sp.GetRequiredService<InlineOutputAdapter>().Attach(app);
 
             // Register all pages from the builder
             foreach (var descriptor in builder.PageDescriptors)

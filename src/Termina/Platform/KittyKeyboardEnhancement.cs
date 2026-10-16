@@ -53,6 +53,30 @@ internal static class KittyKeyboardEnhancement
     }
 
     /// <summary>
+    /// Queries active keyboard flags and then requests primary device attributes.
+    /// </summary>
+    /// <remarks>
+    /// A compatible terminal returns keyboard flags before device attributes.
+    /// An incompatible terminal returns only device attributes.
+    /// </remarks>
+    public static bool TryQuery(object traceSource)
+    {
+        try
+        {
+            Console.Out.Write(AnsiCodes.QueryKittyKeyboard);
+            Console.Out.Write(AnsiCodes.RequestPrimaryDeviceAttributes);
+            Console.Out.Flush();
+            TerminaTrace.Platform.Info(traceSource, "Queried kitty keyboard support");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            TerminaTrace.Platform.Error(traceSource, "Failed to query kitty keyboard support: {0}", ex.Message);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Pops the kitty enhancement from the terminal's per-screen stack by writing
     /// <c>CSI &lt; u</c>. Safe to call on shutdown / restore paths; swallows failures.
     /// </summary>

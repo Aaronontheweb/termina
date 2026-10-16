@@ -35,7 +35,8 @@ public sealed class StatefulLayoutNodeRecreationAnalyzer : DiagnosticAnalyzer
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Some layout nodes such as ScrollableContainerNode own UI state. A DynamicLayoutNode factory runs again on Invalidate(). If the factory creates the stateful node again, the node loses its state. Create the stateful node one time and reuse the instance.");
+        description: "Some layout nodes such as ScrollableContainerNode own UI state. A DynamicLayoutNode factory runs again on Invalidate(). If the factory creates the stateful node again, the node loses its state. Create the stateful node one time and reuse the instance.",
+        helpLinkUri: "https://aaronstannard.com/termina/analyzers/termina004");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
 

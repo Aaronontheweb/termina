@@ -33,13 +33,14 @@ public enum AutoScrollPolicy
 /// A layout node that provides vertical scrolling for content that exceeds the viewport.
 /// Manages scroll position state internally.
 /// </summary>
-public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
+public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, IScrollable, IPointerScrollable
 {
     private ILayoutNode _content = new EmptyNode();
     private int _scrollOffset;
     private int _contentHeight;
     private int _viewportHeight;
     private int _previousContentHeight;
+    private ScreenBounds _lastRenderedBounds = ScreenBounds.Empty;
     private readonly Subject<Unit> _invalidated = new();
     private IDisposable? _contentSubscription;
 
@@ -95,6 +96,8 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     /// Gets whether the view is at or near the bottom (within a few lines).
     /// </summary>
     public bool IsNearBottom => _scrollOffset >= MaxScroll - 2;
+
+    ScreenBounds IPointerScrollable.LastRenderedBounds => _lastRenderedBounds;
 
     /// <summary>
     /// Set the content to scroll.
@@ -169,6 +172,10 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
             _invalidated.OnNext(Unit.Default);
         }
     }
+
+    void IScrollable.ScrollDown(int lines) => ScrollTo(_scrollOffset + Math.Max(0, lines));
+
+    void IScrollable.ScrollUp(int lines) => ScrollTo(_scrollOffset - Math.Max(0, lines));
 
     /// <summary>
     /// Scroll down by a page.
@@ -294,6 +301,10 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     /// <inheritdoc />
     public override void Render(IRenderContext context, Rect bounds)
     {
+        _lastRenderedBounds = context is IScreenPositionedRenderContext positioned
+            ? positioned.GetScreenBounds(bounds)
+            : ScreenBounds.Empty;
+
         if (!bounds.HasArea)
             return;
 
@@ -370,7 +381,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     /// <summary>
     /// A render context that applies vertical scroll offset.
     /// </summary>
-    private sealed class ScrolledRenderContext : IRenderContext
+    private sealed class ScrolledRenderContext : IRenderContext, IScreenPositionedRenderContext
     {
         private readonly IRenderContext _parent;
         private readonly int _offsetX;
@@ -452,6 +463,26 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
                 _offsetY + clippedY,
                 clippedWidth,
                 clippedHeight);
+        }
+
+        ScreenBounds IScreenPositionedRenderContext.GetScreenBounds(Rect bounds)
+        {
+            var clippedX = Math.Max(0, bounds.X);
+            var clippedY = Math.Max(0, bounds.Y);
+            var clippedRight = Math.Min(Width, bounds.Right);
+            var clippedBottom = Math.Min(_clipHeight, bounds.Bottom);
+
+            if (clippedRight <= clippedX || clippedBottom <= clippedY
+                || _parent is not IScreenPositionedRenderContext positioned)
+            {
+                return ScreenBounds.Empty;
+            }
+
+            return positioned.GetScreenBounds(new Rect(
+                _offsetX + clippedX,
+                _offsetY + clippedY,
+                clippedRight - clippedX,
+                clippedBottom - clippedY));
         }
     }
 }

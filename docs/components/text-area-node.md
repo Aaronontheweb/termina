@@ -32,7 +32,7 @@ textArea.Submitted.Subscribe(text => Console.WriteLine($"Submitted:\n{text}"));
 | `←/→` | Move cursor |
 | `Ctrl+←/→` | Move by word |
 | `Shift+←/→` | Select text |
-| `↑/↓` | Move between visual lines (or history when text is empty) |
+| `↑/↓` | Move between visual lines, then traverse history at the first or last boundary |
 | `Home` | Start of current visual line |
 | `End` | End of current visual line |
 | `Ctrl+Home` | Start of document |
@@ -83,6 +83,11 @@ Ctrl+Enter will behave the same as Enter (submit). **Alt+Enter always works** as
 fallback because terminals encode the Alt modifier as an ESC prefix (`ESC` + `CR`), which is
 reliably detected even inside tmux.
 
+Termina probes the active Kitty flags at startup. It publishes a
+`TerminalInputCapabilitiesChanged` event after the probe. Read
+`TerminalInputCapabilities.ModifiedEnterKeySupport` before you claim that a modified Enter
+shortcut works. The result is also available from `TerminaApplication.InputCapabilities`.
+
 ## Word Wrap
 
 Word wrap is enabled by default. Text wraps at word boundaries when it exceeds the available width:
@@ -117,12 +122,24 @@ When at the limit, Ctrl+Enter is consumed but no newline is inserted.
 
 ## Input History
 
-Like `TextInputNode`, history is opt-in. When the text area is empty, Up/Down navigate history. When there is content, Up/Down navigate between visual lines instead:
+Like `TextInputNode`, history is opt-in. Up and Down move between visual lines first.
+Up recalls history from the first visual line. Down restores the saved draft from the last visual line.
 
 ```csharp
 var textArea = new TextAreaNode()
     .WithHistory(maxEntries: 20);
 ```
+
+Cancel active history navigation to restore the saved draft:
+
+```csharp
+if (textArea.CancelHistoryNavigation())
+{
+    // The draft now contains the text from before the first Up key.
+}
+```
+
+The method returns `false` when no history navigation is active.
 
 ## Paste Handling
 
@@ -163,7 +180,7 @@ new TextAreaNode()
 | **Lines** | Single-line | Multi-line |
 | **Enter** | Submit | Submit |
 | **Newline** | N/A | `Ctrl+Enter` or `Alt+Enter` (configurable) |
-| **Up/Down** | History only | Visual lines (history when empty) |
+| **Up/Down** | History only | Visual lines, then history at the first or last boundary |
 | **Home/End** | Start/end of text | Start/end of visual line |
 | **Multi-line paste** | Summary placeholder | Summary placeholder |
 | **Height** | Fixed 1 row | Auto (1–10 rows, configurable) |
@@ -196,6 +213,7 @@ Text areas attached to a page layout tree receive runtime context automatically,
 | `MaxLength` | `int` | `0` | Max total characters (0 = unlimited) |
 | `HasSelection` | `bool` | - | Has selected text |
 | `SelectedText` | `string` | - | Currently selected text |
+| `CursorPosition` | `int` | `0` | Cursor as a UTF-16 index into the editable text (clamped, clears selection). See [Pre-filled Values](./text-input-node.md#pre-filled-values) |
 
 ### Fluent Methods
 
@@ -217,8 +235,10 @@ Text areas attached to a page layout tree receive runtime context automatically,
 |--------|-------------|
 | `HandleInput(ConsoleKeyInfo)` | Process a key press |
 | `HandlePaste(PasteEvent)` | Handle pasted content (shared base class logic) |
+| `MoveCursorToEnd()` | Move the cursor after the last editable character |
 | `Clear()` | Clear text and reset cursor |
 | `AddHistory(string)` | Programmatically add a history entry |
+| `CancelHistoryNavigation()` | Cancel history navigation and restore the saved draft |
 | `Start()` | Start cursor animation |
 | `Stop()` | Stop cursor animation |
 

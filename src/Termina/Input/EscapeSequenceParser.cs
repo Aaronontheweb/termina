@@ -183,6 +183,24 @@ internal sealed class EscapeSequenceParser
                 _seqBuffer.Append(key.KeyChar);
                 var seq = new InputSequence(_seqBuffer.ToString());
 
+                if (key.KeyChar == 'u'
+                    && TerminalCapabilityResponseDecoder.TryDecodeKeyboardFlags(seq, out var keyboardFlags))
+                {
+                    results.Add(new KittyKeyboardFlagsReported(keyboardFlags));
+                    _seqBuffer.Clear();
+                    _state = State.Normal;
+                    break;
+                }
+
+                if (key.KeyChar == 'c'
+                    && TerminalCapabilityResponseDecoder.IsPrimaryDeviceAttributes(seq))
+                {
+                    results.Add(new PrimaryDeviceAttributesReported());
+                    _seqBuffer.Clear();
+                    _state = State.Normal;
+                    break;
+                }
+
                 // Bracketed paste start: ESC[200~
                 if (BracketedPasteDecoder.IsStartSequence(seq))
                 {
@@ -267,7 +285,8 @@ internal sealed class EscapeSequenceParser
                 }
 
                 // If this sequence can no longer match any recognized pattern, flush as raw keys
-                if (!UnknownSequenceFallbackDecoder.CouldLeadToRecognizedSequence(seq))
+                if (!TerminalCapabilityResponseDecoder.CouldBeResponse(seq)
+                    && !UnknownSequenceFallbackDecoder.CouldLeadToRecognizedSequence(seq))
                 {
                     UnknownSequenceFallbackDecoder.AppendRawKeyEvents(seq.Text, results);
                     _seqBuffer.Clear();

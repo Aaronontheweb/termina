@@ -92,7 +92,7 @@ public static class Layouts
     /// </summary>
     /// <remarks>
     /// For content that switches based on a key (enum, step index, tab), prefer
-    /// <see cref="KeyedDynamic{TKey}"/> which provides automatic caching and state preservation.
+    /// <see cref="KeyedDynamic{TKey}(Func{TKey}, Func{TKey, ILayoutNode})"/> which provides automatic caching and state preservation.
     /// </remarks>
     /// <param name="factory">Factory that returns the current child node.</param>
     public static DynamicLayoutNode Dynamic(Func<ILayoutNode> factory) => new(factory);
@@ -104,8 +104,30 @@ public static class Layouts
     /// <typeparam name="TKey">The type of key used to identify content variants.</typeparam>
     /// <param name="keySelector">Function that returns the current key.</param>
     /// <param name="contentFactory">Function that creates content for a given key (called once per key).</param>
+    /// <remarks>
+    /// The keyed layout owns every child that <paramref name="contentFactory"/> returns.
+    /// Wrap externally owned content in a <see cref="DeferredNode"/>.
+    /// </remarks>
     public static KeyedDynamicLayoutNode<TKey> KeyedDynamic<TKey>(
         Func<TKey> keySelector,
         Func<TKey, ILayoutNode> contentFactory)
         where TKey : notnull => new(keySelector, contentFactory);
+
+    /// <summary>
+    /// Create a keyed dynamic layout node with an explicit cache policy.
+    /// </summary>
+    /// <typeparam name="TKey">The type of key that identifies content variants.</typeparam>
+    /// <param name="keySelector">A function that returns the current key.</param>
+    /// <param name="contentFactory">A function that creates content for a key.</param>
+    /// <param name="cachePolicy">The policy that controls retention of inactive content.</param>
+    /// <remarks>
+    /// The keyed layout owns every child that <paramref name="contentFactory"/> returns.
+    /// <see cref="KeyedDynamicCachePolicy.EvictOnKeyChange"/> requires a new child after each key change.
+    /// Wrap externally owned content in a <see cref="DeferredNode"/>.
+    /// </remarks>
+    public static KeyedDynamicLayoutNode<TKey> KeyedDynamic<TKey>(
+        Func<TKey> keySelector,
+        Func<TKey, ILayoutNode> contentFactory,
+        KeyedDynamicCachePolicy cachePolicy)
+        where TKey : notnull => new(keySelector, contentFactory, cachePolicy);
 }

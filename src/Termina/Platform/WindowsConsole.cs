@@ -248,7 +248,10 @@ public sealed class WindowsConsole : IPlatformConsole
     public Observable<ConsoleResizeEvent> Resized => _resized;
 
     /// <inheritdoc />
-    public TerminalCapabilities Capabilities => new(RawInputActive: _rawVtMode);
+    public TerminalCapabilities Capabilities => new(RawInputActive: _rawVtMode)
+    {
+        PreservesKeyModifiers = !_rawVtMode,
+    };
 
     /// <inheritdoc />
     public void Initialize()

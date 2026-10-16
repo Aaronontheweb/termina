@@ -31,6 +31,7 @@
 - **Streaming Support** - Native `StreamingTextNode` for real-time content like LLM output
 - **Dependency Injection** - Full integration with `Microsoft.Extensions.DependencyInjection`
 - **Hosting Integration** - Works with `Microsoft.Extensions.Hosting` for clean lifecycle management
+- **Presentation Modes** - Supports the default full-screen mode and an opt-in primary-buffer mode
 
 ## Installation
 

@@ -19,11 +19,23 @@ public sealed class TextAreaNode : TextInputBaseNode
     private int _scrollTopLine;
     private int _lastKnownWidth;
     private List<WrappedLine>? _wrappedLines;
+    // The width that _wrappedLines was built for. Measure and Render set _lastKnownWidth before
+    // they ask for the wrap, so the cache cannot use _lastKnownWidth as its key.
+    private int _wrappedLinesWidth;
+    // A second entry. Measure and Render can ask for different widths in one frame (for example
+    // WidthAuto in a Vertical layout). With one entry, each frame wraps a long line twice.
+    private List<WrappedLine>? _otherWrappedLines;
+    private int _otherWrappedLinesWidth;
     private ConsoleModifiers _newlineModifier = ConsoleModifiers.Control;
     private int _maxLines;
     private bool _wordWrap = true;
 
-    private record struct WrappedLine(int TextStartIndex, int Length, int ColumnCount);
+    // Measure runs on every frame, and a parent can measure a node more than once in a frame.
+    // A column count walks the whole line, so keep it until the text changes.
+    private ColumnCountCache _prefixColumns;
+    private ColumnCountCache _textColumns;
+
+    internal record struct WrappedLine(int TextStartIndex, int Length, int ColumnCount);
 
     public TextAreaNode(int cursorBlinkMs = 530)
         : base(cursorBlinkMs)
@@ -184,7 +196,10 @@ public sealed class TextAreaNode : TextInputBaseNode
         var (row, col) = GetVisualPosition(displayPos, lines);
 
         if (row == 0)
-            return true; // At top — consume the key
+        {
+            base.HandleUpArrow();
+            return true;
+        }
 
         var previousLine = lines[row - 1];
         var targetCol = Math.Min(col, previousLine.ColumnCount);
@@ -205,7 +220,10 @@ public sealed class TextAreaNode : TextInputBaseNode
         var (row, col) = GetVisualPosition(displayPos, lines);
 
         if (row >= lines.Count - 1)
-            return true; // At bottom — consume the key
+        {
+            base.HandleDownArrow();
+            return true;
+        }
 
         var nextLine = lines[row + 1];
         var targetCol = Math.Min(col, nextLine.ColumnCount);
@@ -289,8 +307,8 @@ public sealed class TextAreaNode : TextInputBaseNode
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
-        var prefixWidth = DisplayWidth.GetColumnCount(CommittedDisplayPrefix);
-        var width = WidthConstraint.Compute(available.Width, prefixWidth + DisplayWidth.GetColumnCount(_text) + 1, available.Width);
+        var prefixWidth = _prefixColumns.Get(CommittedDisplayPrefix);
+        var width = WidthConstraint.Compute(available.Width, prefixWidth + _textColumns.Get(_text) + 1, available.Width);
         _lastKnownWidth = width;
 
         var lines = GetWrappedLines(width);
@@ -492,6 +510,7 @@ public sealed class TextAreaNode : TextInputBaseNode
     private void InvalidateWrappedLines()
     {
         _wrappedLines = null;
+        _otherWrappedLines = null;
     }
 
     private List<WrappedLine> GetWrappedLines(int width)
@@ -499,10 +518,20 @@ public sealed class TextAreaNode : TextInputBaseNode
         if (width <= 0)
             width = 1;
 
-        if (_wrappedLines is not null && _lastKnownWidth == width)
+        if (_wrappedLines is not null && _wrappedLinesWidth == width)
             return _wrappedLines;
 
+        if (_otherWrappedLines is not null && _otherWrappedLinesWidth == width)
+        {
+            (_wrappedLines, _otherWrappedLines) = (_otherWrappedLines, _wrappedLines);
+            (_wrappedLinesWidth, _otherWrappedLinesWidth) = (_otherWrappedLinesWidth, _wrappedLinesWidth);
+            return _wrappedLines;
+        }
+
         _lastKnownWidth = width;
+        _otherWrappedLines = _wrappedLines;
+        _otherWrappedLinesWidth = _wrappedLinesWidth;
+        _wrappedLinesWidth = width;
         _wrappedLines = ComputeWrappedLines(width);
         return _wrappedLines;
     }
@@ -550,7 +579,15 @@ public sealed class TextAreaNode : TextInputBaseNode
         return result;
     }
 
-    private static void WrapLogicalLine(
+    /// <summary>
+    /// Wraps one logical line (no newline) into rows, breaking after whitespace when a row overflows.
+    /// </summary>
+    /// <remarks>
+    /// Each row looks only at a window of text that starts at the row and holds a little more than
+    /// one row, so wrapping costs time proportional to the line length. Measuring the whole
+    /// remainder of the line for every row is quadratic, and it ran after every edit.
+    /// </remarks>
+    internal static void WrapLogicalLine(
         List<WrappedLine> result, string text, int lineStart, int lineLength, int width)
     {
         var pos = lineStart;
@@ -558,18 +595,70 @@ public sealed class TextAreaNode : TextInputBaseNode
 
         while (pos < end)
         {
-            var remainingText = text[pos..end];
-            var remainingWidth = DisplayWidth.GetColumnCount(remainingText);
-            if (remainingWidth <= width)
+            // Find where the row would end if it broke at the width, and whether the rest fits.
+            var window = Math.Min(end - pos, Math.Max(64, width * 4));
+            int breakOffset;
+            int remainingWidth;
+            bool fits;
+            while (true)
+            {
+                // Do not cut a surrogate pair: a half pair would hide the code point that the
+                // boundary before the last element depends on
+                if (pos + window < end && char.IsHighSurrogate(text[pos + window - 1]))
+                    window++;
+
+                var truncated = pos + window < end;
+                var windowText = text.Substring(pos, window);
+                var columns = 0;
+                breakOffset = 0;
+                var firstCellLength = 0;
+                var cellCount = 0;
+                var decided = false;
+                fits = false;
+
+                foreach (var cell in DisplayWidth.EnumerateCells(windowText))
+                {
+                    cellCount++;
+
+                    // The last element of a cut window may continue past the cut, so it is not final
+                    if (truncated && cell.StartIndex + cell.Length >= window)
+                        break;
+
+                    if (cellCount == 1)
+                        firstCellLength = cell.Length;
+
+                    if (columns + cell.ColumnWidth > width)
+                    {
+                        decided = true;
+                        break;
+                    }
+
+                    columns += cell.ColumnWidth;
+                    breakOffset = cell.StartIndex + cell.Length;
+                }
+
+                if (!decided && !truncated)
+                {
+                    fits = true;
+                    decided = true;
+                }
+
+                if (decided)
+                {
+                    if (!fits && breakOffset == 0)
+                        breakOffset = firstCellLength;
+                    remainingWidth = columns;
+                    break;
+                }
+
+                window = Math.Min(end - pos, window * 2);
+            }
+
+            if (fits)
             {
                 result.Add(new WrappedLine(pos, end - pos, remainingWidth));
                 break;
             }
-
-            // Try to break at a word boundary
-            var breakOffset = DisplayWidth.GetStringIndexForColumnCount(remainingText, width);
-            if (breakOffset == 0)
-                breakOffset = DisplayWidth.EnumerateCells(remainingText).First().Length;
 
             var breakPos = pos + breakOffset;
             var wordBreak = breakPos;

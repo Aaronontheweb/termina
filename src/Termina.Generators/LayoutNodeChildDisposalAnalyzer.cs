@@ -37,7 +37,8 @@ public sealed class LayoutNodeChildDisposalAnalyzer : DiagnosticAnalyzer
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Termina layout nodes use an active/inactive lifecycle. OnDeactivate() pauses a child and keeps it alive. Dispose() destroys it. A container should deactivate a switched-out child, not dispose it. Dispose a child only in the container's own teardown (Dispose/DisposeAsync/Dispose(bool)/finalizer).");
+        description: "Termina layout nodes use an active/inactive lifecycle. OnDeactivate() pauses a child and keeps it alive. Dispose() destroys it. A container should deactivate a switched-out child, not dispose it. Dispose a child only in the container's own teardown (Dispose/DisposeAsync/Dispose(bool)/finalizer).",
+        helpLinkUri: "https://aaronstannard.com/termina/analyzers/termina003");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
 

@@ -353,31 +353,7 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
             if (newRoot is IActivatableNode newNode)
                 newNode.OnActivate();
 
-            // Focus handling: preserve user focus if the focused node still
-            // exists in the new tree (common case when BuildLayout reuses
-            // page-field nodes). Otherwise the focused node is orphaned —
-            // clear focus and fall back to the policy default on the new
-            // tree so the user has somewhere to land.
-            if (Focus is not null && Focus.CurrentFocus is { } currentFocus)
-            {
-                var newFocusables = Focus.CollectFocusables(newRoot);
-                var stillPresent = false;
-                foreach (var f in newFocusables)
-                {
-                    if (ReferenceEquals(f, currentFocus))
-                    {
-                        stillPresent = true;
-                        break;
-                    }
-                }
-
-                if (!stillPresent)
-                {
-                    Focus.ClearFocus();
-                    if (FocusPolicy != FocusPolicy.Manual)
-                        ApplyFocusPolicy(newRoot);
-                }
-            }
+            ReconcileFocus(newRoot);
 
             // Request a redraw so the new tree actually renders. Without
             // this, callers who invalidate in response to an event that
@@ -451,12 +427,33 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
         return visited;
     }
 
+    private void OnLayoutStructureChanged()
+    {
+        if (_layoutRoot is { } root)
+            ReconcileFocus(root);
+    }
+
+    private void ReconcileFocus(ILayoutNode root)
+    {
+        if (Focus is null || Focus.CurrentFocus is not { } currentFocus)
+            return;
+
+        var focusables = Focus.CollectFocusables(root);
+        if (focusables.Any(focusable => ReferenceEquals(focusable, currentFocus)))
+            return;
+
+        Focus.ClearFocus();
+        if (FocusPolicy != FocusPolicy.Manual)
+            ApplyFocusPolicy(root);
+    }
+
     private void ApplyRuntimeContext(ILayoutNode root)
     {
         var context = new LayoutRuntimeContext(
             ViewModel.RenderFrameProvider,
             ViewModel.TimeProvider,
-            ViewModel.RequestRedraw);
+            ViewModel.RequestRedraw,
+            OnLayoutStructureChanged);
         LayoutRuntimeContextInjector.Apply(root, context);
     }
 

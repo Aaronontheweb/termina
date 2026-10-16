@@ -9,7 +9,7 @@ namespace Termina.Rendering;
 /// Render context that translates relative coordinates to absolute screen positions.
 /// All rendering is clipped to the region bounds.
 /// </summary>
-public sealed class RegionRenderContext : IRenderContext
+public sealed class RegionRenderContext : IRenderContext, IScreenPositionedRenderContext
 {
     private readonly IAnsiTerminal _terminal;
     private readonly int _offsetX;
@@ -95,6 +95,12 @@ public sealed class RegionRenderContext : IRenderContext
             return;
         }
 
+        if (_terminal is InlineTerminal inlineTerminal)
+        {
+            inlineTerminal.SetDecoration(decoration);
+            return;
+        }
+
         // Reset any previous decorations first
         if (decoration == TextDecoration.None)
         {
@@ -173,5 +179,22 @@ public sealed class RegionRenderContext : IRenderContext
             _offsetY + clippedY,
             clippedWidth,
             clippedHeight);
+    }
+
+    Layout.ScreenBounds IScreenPositionedRenderContext.GetScreenBounds(Layout.Rect bounds)
+    {
+        var clippedX = Math.Max(0, bounds.X);
+        var clippedY = Math.Max(0, bounds.Y);
+        var clippedRight = Math.Min(Width, bounds.Right);
+        var clippedBottom = Math.Min(Height, bounds.Bottom);
+
+        if (clippedRight <= clippedX || clippedBottom <= clippedY)
+            return Layout.ScreenBounds.Empty;
+
+        return new Layout.ScreenBounds(
+            _offsetX + clippedX,
+            _offsetY + clippedY,
+            clippedRight - clippedX,
+            clippedBottom - clippedY);
     }
 }
