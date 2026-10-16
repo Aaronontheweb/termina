@@ -1017,6 +1017,7 @@ namespace Termina.Layout
     public sealed class PanelNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
     {
         public PanelNode() { }
+        public Termina.Terminal.Color? Background { get; }
         public Termina.Rendering.BorderStyle Border { get; }
         public Termina.Terminal.Color? BorderColor { get; }
         public R3.Observable<R3.Unit> Invalidated { get; }
@@ -1028,6 +1029,7 @@ namespace Termina.Layout
         public override void OnActivate() { }
         public override void OnDeactivate() { }
         public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public Termina.Layout.PanelNode WithBackground(Termina.Terminal.Color color) { }
         public Termina.Layout.PanelNode WithBorder(Termina.Rendering.BorderStyle style) { }
         public Termina.Layout.PanelNode WithBorderColor(Termina.Terminal.Color color) { }
         public Termina.Layout.PanelNode WithContent(Termina.Layout.ILayoutNode content) { }

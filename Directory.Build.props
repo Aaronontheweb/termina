@@ -10,13 +10,13 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.17.0-beta.5</VersionPrefix>
-    <PackageReleaseNotes>**Bug Fixes**
+    <VersionPrefix>0.17.0-beta.6</VersionPrefix>
+    <PackageReleaseNotes>**New Features**
 
-- **Corrected text-area prompt history traversal** ([#368](https://github.com/Aaronontheweb/termina/issues/368))
-  - Up recalls prompt history from the first visual line and saves the current draft.
-  - Down restores the saved draft from the last visual line.
-  - Up and Down keep their current visual movement between multiline rows.</PackageReleaseNotes>
+- **Added optional panel background surfaces** ([#378](https://github.com/Aaronontheweb/termina/issues/378))
+  - `PanelNode.WithBackground` fills the complete panel bounds.
+  - Child color resets keep the selected surface background.
+  - Panels without a background keep their current behavior.</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->
