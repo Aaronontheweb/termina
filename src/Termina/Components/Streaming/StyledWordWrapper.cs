@@ -80,24 +80,10 @@ public static class StyledWordWrapper
                     currentWidth = 0;
                 }
 
-                // Break long word into chunks while preserving styles
-                var remaining = word.Line;
-                while (remaining.ColumnCount > width)
-                {
-                    var chunk = remaining.SliceByColumns(0, width);
-                    if (chunk.IsEmpty)
-                        break;
-
-                    result.Add(chunk);
-                    remaining = remaining.SliceByColumns(chunk.ColumnCount, int.MaxValue / 2);
-                }
-
-                // Remainder becomes start of new line
-                if (!remaining.IsEmpty)
-                {
-                    currentLine = remaining;
-                    currentWidth = remaining.ColumnCount;
-                }
+                // Break long word into rows in one pass, preserving styles. The unfinished last
+                // row becomes the start of the current line.
+                currentLine = BreakLongWord(word.Line, wordWidth, width, result);
+                currentWidth = currentLine.ColumnCount;
             }
             else if (currentWidth == 0)
             {
@@ -140,6 +126,113 @@ public static class StyledWordWrapper
         }
 
         return result.Count > 0 ? result : [new StyledLine()];
+    }
+
+    /// <summary>
+    /// Breaks a word that is wider than the available width into rows of at most
+    /// <paramref name="width"/> columns, in a single pass over its text elements.
+    /// </summary>
+    /// <remarks>
+    /// Each text element is measured once and rows are emitted as the column budget fills. This
+    /// keeps the cost linear in the length of the word. Re-slicing the remainder for every row
+    /// costs a walk of the whole remainder per row, which is quadratic for a long unbroken word.
+    /// A zero-width element at the start of a segment is dropped, as <see cref="StyledLine.SliceByColumns"/>
+    /// drops it. A wide element that does not fit a row starts the next row. When even an empty row
+    /// cannot hold the next element, the rest of the word stays together as the current line.
+    /// A zero-width-only segment between two segments of the same style is dropped before the
+    /// neighbours join. The 0.16.3 slicer measured the joined text again, and when the join formed
+    /// one text element (a flag, an emoji modifier sequence) its widths no longer matched and it
+    /// could repeat text. Here the widths are the ones measured per segment.
+    /// </remarks>
+    /// <returns>The unfinished last row, which the caller continues to fill. It is never null.</returns>
+    private static StyledLine BreakLongWord(StyledLine word, int wordWidth, int width, List<StyledLine> result)
+    {
+        var segments = word.Segments;
+        var row = new StyledLine();
+        var taken = 0;
+        var remainingColumns = wordWidth;
+        var emittedRow = false;
+
+        for (var s = 0; s < segments.Count; s++)
+        {
+            var text = segments[s].Text;
+            var style = segments[s].Style;
+            var pieceStart = -1; // start of the part of this segment that belongs to the current row
+            var leading = true;
+
+            foreach (var cell in DisplayWidth.EnumerateCells(text))
+            {
+                // A zero-width element at the start of a segment is dropped
+                if (leading && cell.ColumnWidth == 0)
+                    continue;
+                leading = false;
+
+                if (taken + cell.ColumnWidth <= width)
+                {
+                    if (pieceStart < 0)
+                        pieceStart = cell.StartIndex;
+                    taken += cell.ColumnWidth;
+                    continue;
+                }
+
+                // This element does not fit in the current row
+                if (pieceStart >= 0)
+                    row.Append(new StyledSegment(text.Substring(pieceStart, cell.StartIndex - pieceStart), style));
+
+                if (row.IsEmpty)
+                {
+                    // Not even one element fits. Before the first row the word stays as it was,
+                    // later the rest of the word stays together.
+                    return emittedRow ? CollectRest(segments, s, cell.StartIndex) : word;
+                }
+
+                result.Add(row);
+                emittedRow = true;
+                remainingColumns -= taken;
+                if (remainingColumns <= width)
+                    return CollectRest(segments, s, cell.StartIndex);
+
+                row = new StyledLine();
+                taken = 0;
+                pieceStart = -1;
+
+                // The element starts the next row
+                if (cell.ColumnWidth > width)
+                    return CollectRest(segments, s, cell.StartIndex);
+                pieceStart = cell.StartIndex;
+                taken = cell.ColumnWidth;
+            }
+
+            if (pieceStart >= 0)
+                row.Append(new StyledSegment(text.Substring(pieceStart), style));
+        }
+
+        // Unreachable for a word wider than the width: some element always overflows a row.
+        return emittedRow ? row : word;
+    }
+
+    /// <summary>
+    /// Copies the rest of a word, from a text element in one segment to the end, dropping a
+    /// zero-width element at the start of each later segment.
+    /// </summary>
+    private static StyledLine CollectRest(IReadOnlyList<StyledSegment> segments, int segmentIndex, int startIndex)
+    {
+        var rest = new StyledLine();
+        rest.Append(new StyledSegment(segments[segmentIndex].Text.Substring(startIndex), segments[segmentIndex].Style));
+
+        for (var s = segmentIndex + 1; s < segments.Count; s++)
+        {
+            foreach (var cell in DisplayWidth.EnumerateCells(segments[s].Text))
+            {
+                if (cell.ColumnWidth == 0)
+                    continue;
+
+                rest.Append(new StyledSegment(segments[s].Text.Substring(cell.StartIndex), segments[s].Style));
+                break;
+            }
+        }
+
+        return rest;
     }
 
     /// <summary>
