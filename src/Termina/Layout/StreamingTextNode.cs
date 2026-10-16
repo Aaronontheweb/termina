@@ -470,7 +470,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     {
         if (_buffer is PersistedStreamBuffer persisted)
         {
-            persisted.ScrollUp(lines, viewportWidth);
+            persisted.ScrollUp(lines, viewportWidth, _lastViewportHeight);
             NotifyChanged();
         }
     }
@@ -525,7 +525,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
                 // Ctrl+Home scrolls to top
                 if (_buffer is PersistedStreamBuffer persisted)
                 {
-                    persisted.ScrollToTop(viewportWidth);
+                    persisted.ScrollToTop(viewportWidth, _lastViewportHeight);
                     NotifyChanged();
                 }
                 return true;
@@ -613,7 +613,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     /// Returns <see langword="false"/> before the first render.
     /// </remarks>
     public bool CanScrollUp => _buffer is PersistedStreamBuffer p &&
-        p.ScrollOffset < p.GetMaxScrollOffset(_lastViewportWidth);
+        p.ScrollOffset < p.GetMaxScrollOffset(_lastViewportWidth, _lastViewportHeight);
 
     /// <inheritdoc cref="IScrollable.CanScrollDown"/>
     /// <remarks>
@@ -658,6 +658,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
         // Update cached viewport dimensions for IScrollable
         _lastViewportWidth = contentWidth;
         _lastViewportHeight = bounds.Height;
+        ClampScrollOffsetToViewport(contentWidth, bounds.Height);
 
         // Get styled lines from buffer
         var styledLines = _buffer.GetVisibleStyledLines(bounds.Height, contentWidth);
@@ -714,6 +715,16 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
             DrawScrollbar(streamContext, bounds, contentWidth);
     }
 
+    private void ClampScrollOffsetToViewport(int viewportWidth, int viewportHeight)
+    {
+        if (_buffer is not PersistedStreamBuffer persisted)
+            return;
+
+        var maxScroll = persisted.GetMaxScrollOffset(viewportWidth, viewportHeight);
+        if (persisted.ScrollOffset > maxScroll)
+            persisted.ScrollToTop(viewportWidth, viewportHeight);
+    }
+
     private bool ShouldDrawScrollbar(Rect bounds)
     {
         if (_scrollbarOptions == null || _buffer is not PersistedStreamBuffer persisted)
@@ -736,7 +747,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
         if (_buffer is not PersistedStreamBuffer persisted) return;
 
         var scrollOffset = persisted.ScrollOffset;
-        var maxScroll = persisted.GetMaxScrollOffset(contentWidth);
+        var maxScroll = persisted.GetMaxScrollOffset(contentWidth, bounds.Height);
         if (maxScroll <= 0) return;
 
         var x = bounds.Width - 1;

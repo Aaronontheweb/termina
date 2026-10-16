@@ -131,13 +131,16 @@ namespace Termina.Components.Streaming
         public System.Collections.Generic.IReadOnlyList<string> GetAllLines() { }
         public System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.StyledLine> GetAllStyledLines() { }
         public int GetMaxScrollOffset(int viewportWidth) { }
+        public int GetMaxScrollOffset(int viewportWidth, int viewportHeight) { }
         public System.Collections.Generic.IReadOnlyList<string> GetVisibleLines(int viewportHeight, int viewportWidth) { }
         public System.Collections.Generic.IReadOnlyList<Termina.Components.Streaming.StyledLine> GetVisibleStyledLines(int viewportHeight, int viewportWidth) { }
         public int GetWrappedLineCount(int viewportWidth) { }
         public void ScrollDown(int lines = 1) { }
         public void ScrollToBottom() { }
         public void ScrollToTop(int viewportWidth = 80) { }
+        public void ScrollToTop(int viewportWidth, int viewportHeight) { }
         public void ScrollUp(int lines = 1, int viewportWidth = 80) { }
+        public void ScrollUp(int lines, int viewportWidth, int viewportHeight) { }
     }
     public sealed class SpinnerSegment : System.IDisposable, Termina.Components.Streaming.IAnimatedTextSegment, Termina.Components.Streaming.ITextSegment
     {
