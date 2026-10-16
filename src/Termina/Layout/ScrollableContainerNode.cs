@@ -234,12 +234,12 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, ISc
 
     private void OnContentInvalidated()
     {
-        // Content changed - check if we need to auto-scroll
-        ApplyAutoScrollPolicy();
+        // Heights are stale until the next Measure, so Measure makes the real tail decision.
+        ApplyAutoScrollPolicy(IsNearBottom);
         _invalidated.OnNext(Unit.Default);
     }
 
-    private void ApplyAutoScrollPolicy(bool? wasNearBottom = null)
+    private void ApplyAutoScrollPolicy(bool wasNearBottom)
     {
         switch (AutoScroll)
         {
@@ -247,8 +247,10 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, ISc
                 _scrollOffset = MaxScroll;
                 break;
             case AutoScrollPolicy.TailWhenAtBottom:
-                // If we were at or near the bottom before, stay at the bottom
-                if ((wasNearBottom ?? IsNearBottom) || _previousContentHeight <= _viewportHeight)
+                // Tail if the view was near the bottom before the measure (a large update
+                // moves MaxScroll away from the old offset), is near it now (a shrink puts
+                // the old offset past MaxScroll), or the content fit the viewport.
+                if (wasNearBottom || IsNearBottom || _previousContentHeight <= _viewportHeight)
                 {
                     _scrollOffset = MaxScroll;
                 }
