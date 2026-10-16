@@ -1,15 +1,166 @@
-# Release Notes — Termina 0.17.0-beta.6
+# Release Notes — Termina 0.17.0
 
-**Release date:** 2026-08-12
+**Release date:** 2026-10-16
 
 ####
 
+**Behavior Changes**
+
+- **The event loop no longer runs queued work after it stops** ([#400](https://github.com/Aaronontheweb/termina/pull/400))
+  - When the loop stops, it drops all work that is still in the queue. This includes work that `Post` or `InvokeAsync` queued before the call to `Shutdown()`. Earlier versions could run that work.
+  - A task that `InvokeAsync` returned for dropped work ends as canceled with `TaskCanceledException`. The task ends this way even when the token of the caller is not canceled.
+  - `InvokeAsync` called after the loop stopped returns a canceled task. `Post` called after the loop stopped does not run its work.
+  - A queued `CommitAsync` call for inline output ends as canceled in the same way.
+  - Code that must run during shutdown must run before `Shutdown()`, not as queued work.
+- **`RequestRedraw` can merge with a redraw request that is already queued** ([#400](https://github.com/Aaronontheweb/termina/pull/400))
+  - Change the state before you call `RequestRedraw()`. A render that runs between the call and the state change can draw the old state. The loop then skips the merged request.
+  - A `RedrawRequested.Instance` that an input source writes to the event channel always renders.
+  - `Input` subscribers still see every redraw request as `RedrawRequested`.
+
 **New Features**
 
-- **Added optional panel background surfaces** ([#378](https://github.com/Aaronontheweb/termina/issues/378))
-  - `PanelNode.WithBackground` fills the complete panel bounds.
-  - Child color resets keep the selected surface background.
-  - Panels without a background keep their current behavior.
+- **Added an opt-in inline presentation mode** ([#373](https://github.com/Aaronontheweb/termina/pull/373), fixes [#366](https://github.com/Aaronontheweb/termina/issues/366) and [#370](https://github.com/Aaronontheweb/termina/issues/370))
+  - `TerminalPresentationMode.Inline` keeps settled output in the primary buffer.
+  - `IInlineOutput` commits stable layouts above one bounded live region.
+  - `ScrollInputMode.NativeTerminal` leaves selection and scrollback under terminal control.
+  - `IInlineTerminalControl` adds relative cursor operations without a change to `IAnsiTerminal`. `AnsiTerminal` and `VirtualTerminal` implement the new contract.
+  - Full-screen mode remains the default mode.
+
+- **Added semantic clipboard content for copyable text** ([#374](https://github.com/Aaronontheweb/termina/pull/374), fixes [#367](https://github.com/Aaronontheweb/termina/issues/367))
+  - `WithSemanticContent` separates complete clipboard text from compact display text.
+  - `TryCopy` reports clipboard failure and preserves the current selection.
+
+- **Added a modified Enter key capability result** ([#375](https://github.com/Aaronontheweb/termina/pull/375), fixes [#240](https://github.com/Aaronontheweb/termina/issues/240))
+  - Termina queries active Kitty keyboard flags without a terminal-name guess.
+  - `TerminalInputCapabilitiesChanged` reports whether modified Enter keys remain distinct.
+  - `TerminaApplication.InputCapabilities` exposes the latest result.
+  - Windows console records report native modifier support.
+
+- **Added prompt history cancellation** ([#376](https://github.com/Aaronontheweb/termina/pull/376), fixes [#368](https://github.com/Aaronontheweb/termina/issues/368))
+  - `CancelHistoryNavigation` restores the draft that existed before history navigation.
+  - The API resets history navigation without a change to current method signatures.
+
+- **Added pointer-aware wheel routing** ([#376](https://github.com/Aaronontheweb/termina/pull/376), fixes [#240](https://github.com/Aaronontheweb/termina/issues/240))
+  - `MouseScrollEvent` preserves zero-based pointer coordinates and keyboard modifiers.
+  - Termina routes wheel input to the measured scroll region under the pointer.
+  - `ScrollableContainerNode` now implements the current `IScrollable` contract.
+
+- **Added an optional panel background surface** ([#379](https://github.com/Aaronontheweb/termina/pull/379), fixes [#378](https://github.com/Aaronontheweb/termina/issues/378))
+  - `PanelNode.WithBackground(Color)` sets the surface. `PanelNode.Background` reads it.
+  - The panel fills its complete bounds, including the border cells.
+  - A child that resets its colors returns to the surface. A child that selects its own background keeps it.
+  - A scrollable or streaming node in a surface panel keeps its screen bounds, so the mouse wheel reaches it.
+  - A panel without a background keeps its current behavior.
+
+**Performance**
+
+- **The event loop renders once for each batch of queued events** ([#400](https://github.com/Aaronontheweb/termina/pull/400))
+  - The loop processes the events that are queued when a batch starts, and then renders once. Events that arrive during the batch go to the next batch.
+  - Before, the loop rendered the full page after every event. A slow render let the queue grow without limit.
+  - 20 `RequestRedraw` calls in one loop turn now cause 2 to 3 renders. Before, they caused 24 renders.
+  - The cursor blink alone now causes about 1.9 renders each second. Before, it caused about 4.3.
+  - The final frame is the same as before.
+- **`TextAreaNode` measures a long line cheaply** ([#400](https://github.com/Aaronontheweb/termina/pull/400))
+  - `Measure` keeps the column counts of the text until the text changes. A call with unchanged text takes under 0.01 ms and allocates no memory. Before, it took 43 ms and allocated 16 MB for a line of 600,000 characters.
+  - `DisplayWidth.GetColumnCount` returns the length of printable ASCII text without an allocation.
+  - `TextAreaNode` keeps one line wrap for each width. A layout that measures and renders at different widths no longer wraps the line twice for each frame.
+  - One render of an unchanged 600,000-character line takes under 1 ms instead of 69 ms, and allocates 0.27 MB instead of 32 MB.
+- **Ctrl+Q exits fast with a large transcript or a large paste** ([#400](https://github.com/Aaronontheweb/termina/pull/400))
+  - The loop waits for each batch with `WaitToReadAsync` and stops at a shutdown request. Before, the loop kept running while events kept arriving.
+  - An app with a 1,000,000-character line now exits in about 360 ms. Before, it did not exit within 90 s.
+- **Wrapping a very long line is now linear in its length** ([#398](https://github.com/Aaronontheweb/termina/pull/398), fixes [#397](https://github.com/Aaronontheweb/termina/issues/397), first shipped in 0.16.4)
+  - `StyledWordWrapper`, `WordWrapper`, and `TextAreaNode` no longer re-measure the rest of a long line for every wrapped row.
+- **Text writes to the diffing terminal allocate less** ([#379](https://github.com/Aaronontheweb/termina/pull/379))
+  - `DiffingTerminal.Write` skips the grapheme parse when every char is printable ASCII. All other text uses the old loop.
+  - A full-screen frame of a panel with a background allocates 40 KB instead of 400 KB. It renders in about 0.7 ms instead of 1.5 ms.
+  - This change applies to every app and every render, not only panels. The output is the same.
+
+**Bug Fixes**
+
+- **Fixed tail follow after a large content update** ([#383](https://github.com/Aaronontheweb/termina/pull/383))
+  - A `ScrollableContainerNode` with `TailWhenAtBottom` stopped at the old offset after the content grew by more than 2 rows. This happens often now, because the loop renders once for each batch of events.
+  - `Measure` now reads `IsNearBottom` before it replaces the content height.
+  - When the content shrinks, `Measure` clamps the offset to the new range. Before, a shrink could leave a blank pane.
+  - A user who scrolled up stays where the user is.
+
+- **Restored all terminal and input state after a render failure**
+  - Termina now cancels input tasks before it propagates a render exception.
+  - Termina restores the cursor, mouse modes, keyboard modes, and input mode.
+
+- **Corrected text-area prompt history traversal** ([#377](https://github.com/Aaronontheweb/termina/pull/377), fixes [#368](https://github.com/Aaronontheweb/termina/issues/368))
+  - Up recalls prompt history from the first visual line and saves the current draft.
+  - Down restores the saved draft from the last visual line.
+  - Up and Down keep their current visual movement between multiline rows.
+
+- **Made container disposal safe when layout retirement overlaps teardown** ([#384](https://github.com/Aaronontheweb/termina/pull/384), first shipped in 0.16.2)
+  - `ContainerNode.Dispose()` now claims teardown atomically, so concurrent disposal no longer completes the same reactive invalidation subject twice.
+
+- **Added a way to place the cursor in a pre-filled text input** ([#395](https://github.com/Aaronontheweb/termina/pull/395), fixes [#394](https://github.com/Aaronontheweb/termina/issues/394), first shipped in 0.16.3)
+  - `TextInputBaseNode.CursorPosition` gets and sets the cursor as a UTF-16 index into the editable text.
+  - `TextInputBaseNode.MoveCursorToEnd()` moves the cursor to the end of the text.
+
+**Compatibility**
+
+- Current enum values and public signatures keep their behavior. The release adds no public API change that breaks a caller, apart from the event loop behavior changes above.
+- The current `AnsiTerminal(bool)` constructor keeps its behavior.
+- An API approval test prevents accidental contract changes.
+
+**Maintenance**
+
+- Bumped `Microsoft.SourceLink.GitHub` to 10.0.303 ([#396](https://github.com/Aaronontheweb/termina/pull/396)) and pinned `System.Security.Cryptography.Pkcs` to 10.0.13 in the test project ([#399](https://github.com/Aaronontheweb/termina/pull/399)) to clear security advisory warnings.
+- Updated `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Hosting` to 10.0.11 ([#380](https://github.com/Aaronontheweb/termina/pull/380), [#389](https://github.com/Aaronontheweb/termina/pull/389)).
+- Updated `Microsoft.CodeAnalysis.CSharp` and `Microsoft.CodeAnalysis.Analyzers` to 5.9.0 for the repository ([#387](https://github.com/Aaronontheweb/termina/pull/387)). The source generators and analyzers that ship in the package stay on 5.3.0, as in 0.16.4 ([#403](https://github.com/Aaronontheweb/termina/pull/403)). Consumers keep the same .NET SDK requirement.
+- Updated the `incrementalist.cmd` tool to 1.2.2 ([#385](https://github.com/Aaronontheweb/termina/pull/385)).
+
+####
+
+# Release Notes — Termina 0.16.4
+
+**Release date:** 2026-10-14
+
+####
+
+**Bug Fixes**
+
+- **Wrapping a very long line is now linear in its length** ([#398](https://github.com/Aaronontheweb/termina/pull/398), fixes [#397](https://github.com/Aaronontheweb/termina/issues/397))
+  - `StyledWordWrapper` (used by `StreamingTextNode`), `WordWrapper` (used by `TextNode`) and `TextAreaNode` re-measured the rest of a long word or line for every wrapped row, so wrapping was quadratic in line length.
+  - A line of 100,000 characters with no break opportunities now wraps in milliseconds instead of seconds. An app rendering such a line no longer pins a core or stops handling input at normal frame rates.
+  - Wrapped output is the same as 0.16.3, with one exception: a zero-width-only segment between two segments of the same style inside a word wider than the row. 0.16.3 could draw part of that text twice; it is now drawn once.
+
+####
+
+# Release Notes — Termina 0.16.3
+
+**Release date:** 2026-10-08
+
+####
+
+**Bug Fixes**
+
+- **Added a way to place the cursor in a pre-filled text input** ([#395](https://github.com/Aaronontheweb/termina/pull/395), fixes [#394](https://github.com/Aaronontheweb/termina/issues/394))
+  - Assigning `Text` on a `TextInputNode` or `TextAreaNode` leaves the cursor where it was, so a pre-filled field started with the cursor in front of its default text.
+  - `TextInputBaseNode.CursorPosition` gets and sets the cursor as a UTF-16 index into the editable text, clamped to a text-element boundary.
+  - `TextInputBaseNode.MoveCursorToEnd()` moves the cursor to the end of the text.
+  - Both work before the node is attached or focused. The `Text` setter is unchanged.
+
+**Maintenance**
+
+- **Bumped `Microsoft.SourceLink.GitHub` to 10.0.303** ([#396](https://github.com/Aaronontheweb/termina/pull/396)) to clear the NU1902 advisory on `Microsoft.Build.Tasks.Git`.
+
+####
+
+# Release Notes — Termina 0.16.2
+
+**Release date:** 2026-08-14
+
+####
+
+**Bug Fixes**
+
+- **Made container disposal safe when layout retirement overlaps teardown** ([#384](https://github.com/Aaronontheweb/termina/pull/384))
+  - `ContainerNode.Dispose()` now claims teardown atomically.
+  - Concurrent or repeated disposal no longer completes the same reactive invalidation subject twice.
+  - Child layout nodes are still disposed exactly once.
 
 ####
 
