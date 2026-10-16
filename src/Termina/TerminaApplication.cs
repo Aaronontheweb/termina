@@ -72,6 +72,15 @@ public sealed class TerminaApplication : IInlineOutput
     private bool _mouseEnabledByApp;
     private bool _wheelScrollEnabledByApp;
     private int _pendingNavigationRequests;
+
+    // 1 when RequestRedraw ran after the start of the last render. An ApplicationRedrawRequested
+    // event that finds 0 asks for a frame that a later render already drew, so the loop does not
+    // render again.
+    private int _redrawPending;
+
+    // 1 after RunAsync stopped its loop. Work that a caller awaits and that arrives after this
+    // point cannot run, so InvokeAsync cancels it.
+    private int _loopStopped;
     private TerminalInputCapabilities _inputCapabilities = new(
         TerminalCapabilityAvailability.Unknown,
         TerminalInputCapabilitySource.None);
@@ -414,6 +423,11 @@ public sealed class TerminaApplication : IInlineOutput
     /// <summary>
     /// Request graceful shutdown of the application.
     /// </summary>
+    /// <remarks>
+    /// The loop stops at once. It does not run work that is still in the queue, also work that
+    /// <see cref="Post"/> or <see cref="InvokeAsync"/> queued before this call. A task that
+    /// <see cref="InvokeAsync"/> returned for such work ends as canceled.
+    /// </remarks>
     public void Shutdown()
     {
         _shutdownCts?.Cancel();
@@ -422,10 +436,19 @@ public sealed class TerminaApplication : IInlineOutput
     /// <summary>
     /// Request a UI redraw. Used by ViewModels when async content changes.
     /// </summary>
+    /// <remarks>
+    /// Change the state before you call this method. The loop can merge this request with a redraw
+    /// request that is already in the queue. A render that runs between a call that comes first and
+    /// the state change can draw the old state, and the loop then skips the merged request.
+    /// </remarks>
     public void RequestRedraw()
     {
-        // Push a redraw event to the event channel - this will trigger re-render
-        _eventChannel.Writer.TryWrite(RedrawRequested.Instance);
+        // Set the flag before the event is queued, so the loop always sees the flag when it reads the event.
+        Volatile.Write(ref _redrawPending, 1);
+
+        // The loop can skip this event when a later render already drew the change. A
+        // RedrawRequested.Instance that an input source writes always causes a render.
+        _eventChannel.Writer.TryWrite(ApplicationRedrawRequested.Instance);
     }
 
     /// <inheritdoc />
@@ -467,6 +490,11 @@ public sealed class TerminaApplication : IInlineOutput
     /// <summary>
     /// Enqueues work to run on the Termina render loop thread.
     /// </summary>
+    /// <remarks>
+    /// The work does not run when the loop stops first. A stop drops all work that is still in the
+    /// queue, also work that this method queued before a <see cref="Shutdown"/> call. Work that
+    /// this method queues after the loop stopped does not run.
+    /// </remarks>
     /// <param name="action">The work to run on the loop.</param>
     public void Post(Action action)
     {
@@ -480,6 +508,12 @@ public sealed class TerminaApplication : IInlineOutput
     /// Enqueues work to run on the Termina render loop thread and returns a task that
     /// completes when the work has run.
     /// </summary>
+    /// <remarks>
+    /// The work does not run when the loop stops first. A stop drops all work that is still in the
+    /// queue, also work that was queued before a <see cref="Shutdown"/> call. The returned task then
+    /// ends as canceled (<see cref="TaskCanceledException"/>), even when the token of the caller is
+    /// not canceled.
+    /// </remarks>
     /// <param name="action">The work to run on the loop.</param>
     /// <param name="cancellationToken">Cancels the work if it has not run yet.</param>
     public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
@@ -497,9 +531,15 @@ public sealed class TerminaApplication : IInlineOutput
                 () => completion.TrySetCanceled(cancellationToken));
         }
 
+        void Abandon()
+        {
+            completion.TrySetCanceled();
+            cancellationRegistration.Dispose();
+        }
+
         try
         {
-            Post(() =>
+            var work = new LoopWorkRequested(() =>
             {
                 try
                 {
@@ -522,13 +562,21 @@ public sealed class TerminaApplication : IInlineOutput
                 {
                     cancellationRegistration.Dispose();
                 }
-            });
+            }, Abandon);
+
+            if (!_eventChannel.Writer.TryWrite(work))
+                throw new InvalidOperationException("Unable to post work to the Termina event loop.");
         }
         catch
         {
             cancellationRegistration.Dispose();
             throw;
         }
+
+        // The loop drains the queue when it stops. Work written after that drain is not drained,
+        // so cancel it here. Interlocked gives a full fence between the write above and this read.
+        if (Interlocked.CompareExchange(ref _loopStopped, 0, 0) != 0)
+            Abandon();
 
         return completion.Task;
     }
@@ -612,6 +660,7 @@ public sealed class TerminaApplication : IInlineOutput
         TerminaTrace.Input.Debug(this, "Creating linked cancellation token");
         _shutdownCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var linkedToken = _shutdownCts.Token;
+        Interlocked.Exchange(ref _loopStopped, 0);
         TerminaTrace.Input.Debug(this, "Linked token created");
 
         // Start each input source - they push to the shared channel
@@ -690,10 +739,13 @@ public sealed class TerminaApplication : IInlineOutput
                     RenderCurrentPage();
                 TerminaTrace.Render.Debug(this, "Initial render complete");
 
-                // Single-threaded event loop - all input sources merge here
-                await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))
+                // Single-threaded event loop - all input sources merge here.
+                // WaitToReadAsync observes the token for each batch. ReadAllAsync does not
+                // observe it while the queue is not empty, so a steady producer kept the loop
+                // alive after Shutdown.
+                while (await _eventChannel.Reader.WaitToReadAsync(linkedToken))
                 {
-                    ProcessEventAndMaybeRender(evt);
+                    ProcessQueuedEvents(linkedToken);
                 }
             }
             catch (OperationCanceledException)
@@ -753,6 +805,8 @@ public sealed class TerminaApplication : IInlineOutput
             }
             finally
             {
+                Interlocked.Exchange(ref _loopStopped, 1);
+                AbandonQueuedEvents();
                 _shutdownCts.Dispose();
                 _shutdownCts = null;
             }
@@ -765,6 +819,10 @@ public sealed class TerminaApplication : IInlineOutput
     private void ProcessEvent(object evt)
     {
         TerminaTrace.Input.Trace(this, "ProcessEvent: {0}", evt.GetType().Name);
+
+        // Subscribers see every redraw request as the public event.
+        if (evt is ApplicationRedrawRequested)
+            evt = RedrawRequested.Instance;
 
         // Framework-level Ctrl+C handling: first press shows a hint, second press
         // within CtrlCDoublePressWindow shuts the app down. We scope this to raw-input
@@ -938,22 +996,91 @@ public sealed class TerminaApplication : IInlineOutput
         }
     }
 
-    private void ProcessEventAndMaybeRender(object evt)
+    /// <summary>
+    /// Processes, in order, the events that are in the queue now, and then renders the page once.
+    /// </summary>
+    /// <remarks>
+    /// A render draws the whole page, so one render after a batch shows the same final state as one
+    /// render after each event. When a render takes longer than events arrive (for example a very
+    /// long line in a text area, with the cursor blink and redraw requests), a render after each
+    /// event makes the queue grow without limit, and work posted to the loop, such as a shutdown,
+    /// never runs. The batch holds only the events that were queued when it started. Events that
+    /// arrive during the batch go to the next batch, so a steady producer cannot postpone the render.
+    /// </remarks>
+    internal void ProcessQueuedEvents(CancellationToken cancellationToken)
     {
+        var reader = _eventChannel.Reader;
+        var remaining = Math.Max(1, reader.Count);
+        var renderNeeded = false;
+
+        // Stop at a shutdown request: the events after it must not run on a closing application.
+        while (remaining-- > 0
+               && !cancellationToken.IsCancellationRequested
+               && reader.TryRead(out var evt))
+        {
+            renderNeeded = ProcessQueuedEvent(evt, renderNeeded);
+        }
+
+        // Render after a shutdown request too, so the last frame shows every processed event.
+        RenderIfNeeded(renderNeeded);
+    }
+
+    private void ProcessEventAndMaybeRender(object evt) =>
+        RenderIfNeeded(ProcessQueuedEvent(evt, renderNeeded: false));
+
+    /// <summary>
+    /// Processes one event and returns whether the page needs a render after it.
+    /// </summary>
+    private bool ProcessQueuedEvent(object evt, bool renderNeeded)
+    {
+        // An inline commit renders the page itself.
         if (evt is InlineCommitRequested inlineCommit)
         {
             ProcessInlineCommit(inlineCommit);
-            return;
+            return renderNeeded;
         }
 
         ProcessEvent(evt);
 
-        // If this event enqueued a navigation, do not render the page that is
-        // one event-loop turn away from being replaced.
-        if (HasPendingNavigationRequests())
-            return;
+        return renderNeeded
+            || evt is not ApplicationRedrawRequested
+            || Volatile.Read(ref _redrawPending) != 0;
+    }
 
-        RenderCurrentPage();
+    private void RenderIfNeeded(bool renderNeeded)
+    {
+        // If an event enqueued a navigation, do not render the page that is
+        // one event-loop turn away from being replaced.
+        if (renderNeeded && !HasPendingNavigationRequests())
+            RenderCurrentPage();
+    }
+
+    /// <summary>
+    /// Empties the queue after the loop stopped. A batch stops at a shutdown request, so events can
+    /// stay in the queue. This cancels each task that a caller awaits for one of them, and releases
+    /// the cancellation resources of each inline commit.
+    /// </summary>
+    private void AbandonQueuedEvents()
+    {
+        while (_eventChannel.Reader.TryRead(out var evt))
+        {
+            switch (evt)
+            {
+                case LoopWorkRequested { Abandon: { } abandon }:
+                    abandon();
+                    break;
+
+                case InlineCommitRequested commit:
+                    commit.Completion.TrySetCanceled();
+                    commit.Registration.Dispose();
+                    commit.Cancellation.Dispose();
+                    break;
+
+                case NavigationRequested:
+                    Interlocked.Decrement(ref _pendingNavigationRequests);
+                    break;
+            }
+        }
     }
 
     private void ProcessInlineCommit(InlineCommitRequested request)
@@ -1136,6 +1263,10 @@ public sealed class TerminaApplication : IInlineOutput
     /// </remarks>
     private void RenderCurrentPage()
     {
+        // This render draws every change that was requested before this point. Clear the flag
+        // first, so that a request during the render still causes one more render.
+        Interlocked.Exchange(ref _redrawPending, 0);
+
         var layoutRoot = GetCurrentLayoutRoot() ?? new TextNode("No page active");
         if (_toastOverlay != null)
         {
@@ -1235,7 +1366,23 @@ public sealed class TerminaApplication : IInlineOutput
         _renderFrameProvider.Dispose();
     }
 
-    private sealed record LoopWorkRequested(Action Action);
+    /// <param name="Action">The work to run on the loop.</param>
+    /// <param name="Abandon">Settles the caller's task when the loop stops before the work runs.</param>
+    private sealed record LoopWorkRequested(Action Action, Action? Abandon = null);
+
+    /// <summary>
+    /// The redraw event that <see cref="RequestRedraw"/> queues. The loop tells it apart from a
+    /// <see cref="RedrawRequested"/> that an input source writes, because only this event can be
+    /// skipped when the redraw flag is clear.
+    /// </summary>
+    private sealed class ApplicationRedrawRequested
+    {
+        public static readonly ApplicationRedrawRequested Instance = new();
+
+        private ApplicationRedrawRequested()
+        {
+        }
+    }
 
     private sealed record InlineCommitRequested(
         ILayoutNode Content,
