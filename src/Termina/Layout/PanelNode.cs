@@ -179,11 +179,18 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
             return;
 
         // Create a sub-context for this panel's bounds so all coordinates are relative to the panel
-        var panelContext = context.CreateSubContext(bounds);
+        var unwrappedContext = context.CreateSubContext(bounds);
+        var panelContext = unwrappedContext;
 
         if (Background.HasValue)
         {
-            panelContext.SetBackground(Background.Value);
+            // Select the surface once. A child that selects another background keeps it,
+            // because nothing below selects the surface again until a child resets its colors.
+            unwrappedContext.SetBackground(Background.Value);
+
+            // Wrap the panel context itself, so the border code and the content both
+            // return to the surface after a color reset.
+            panelContext = new SurfaceRenderContext(unwrappedContext, Background.Value);
             panelContext.Clear();
         }
 
@@ -257,14 +264,13 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
         {
             // Create a sub-context for the content area
             var contentContext = panelContext.CreateSubContext(contentBounds);
-            if (Background.HasValue)
-                contentContext = new SurfaceRenderContext(contentContext, Background.Value);
             var innerBounds = new Rect(0, 0, contentBounds.Width, contentBounds.Height);
             _content.Render(contentContext, innerBounds);
         }
 
+        // Reset the unwrapped context, so the surface does not reach the next sibling.
         if (Background.HasValue)
-            panelContext.ResetColors();
+            unwrappedContext.ResetColors();
     }
 
     /// <inheritdoc />
@@ -311,7 +317,17 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
         char BottomLeft, char BottomRight,
         char Horizontal, char Vertical);
 
-    private sealed class SurfaceRenderContext : IRenderContext
+    /// <summary>
+    /// Restores the panel surface after a color reset.
+    /// </summary>
+    /// <remarks>
+    /// This wrapper must forward each internal capability interface that the inner context
+    /// implements. A node that tests its context for such an interface loses the capability
+    /// when the wrapper hides it. <see cref="IScreenPositionedRenderContext"/> is the one today.
+    /// The constructor does not select the surface. The panel selects it once, so a child
+    /// that selects its own background keeps it across <see cref="CreateSubContext"/>.
+    /// </remarks>
+    private sealed class SurfaceRenderContext : IRenderContext, IScreenPositionedRenderContext
     {
         private readonly IRenderContext _inner;
         private readonly Color _background;
@@ -320,8 +336,12 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
         {
             _inner = inner;
             _background = background;
-            _inner.SetBackground(background);
         }
+
+        ScreenBounds IScreenPositionedRenderContext.GetScreenBounds(Rect bounds) =>
+            _inner is IScreenPositionedRenderContext positioned
+                ? positioned.GetScreenBounds(bounds)
+                : ScreenBounds.Empty;
 
         public int Width => _inner.Width;
         public int Height => _inner.Height;

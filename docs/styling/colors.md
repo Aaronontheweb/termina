@@ -131,7 +131,7 @@ At least two colors are required. Positions outside the 0–1 range are clamped.
 | Component | Foreground | Background | Other |
 |-----------|------------|------------|-------|
 | TextNode | ✓ | ✓ | - |
-| PanelNode | - | - | Border, Title |
+| PanelNode | - | ✓ | Border, Title |
 | SpinnerNode | - | - | Spinner, Label |
 | TextInputNode | ✓ | ✓ | Placeholder, Cursor, Selection |
 | StreamingTextNode | ✓ | ✓ | Prefix |

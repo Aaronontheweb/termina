@@ -25,6 +25,11 @@ namespace Termina.Terminal;
 /// </remarks>
 public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
 {
+    // One shared string for each printable ASCII char (0x20 to 0x7E). Strings are immutable, so cells can share them.
+    private static readonly string[] AsciiCells = Enumerable.Range(' ', '~' - ' ' + 1)
+        .Select(c => ((char)c).ToString())
+        .ToArray();
+
     private readonly IAnsiTerminal _inner;
     private FrameBuffer _currentFrame;
     private FrameBuffer _pendingFrame;
@@ -92,6 +97,18 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
     /// <inheritdoc />
     public void Write(string text)
     {
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        // Printable ASCII is one text element and one column per char. Skip the grapheme parse
+        // and the string that it allocates for each cell. A fill or a plain text line takes this path.
+        if (!text.AsSpan().ContainsAnyExceptInRange(' ', '~'))
+        {
+            foreach (var c in text)
+                WriteTextElementToBuffer(AsciiCells[c - ' '], 1);
+            return;
+        }
+
         foreach (var cell in DisplayWidth.EnumerateCells(text))
         {
             WriteTextElementToBuffer(cell.Text, cell.ColumnWidth);
