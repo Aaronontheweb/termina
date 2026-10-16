@@ -3,6 +3,7 @@
 
 using R3;
 using Termina.Layout;
+using Termina.Rendering;
 
 namespace Termina.Tests.Layout;
 
@@ -343,6 +344,29 @@ public class LayoutNodeLifecycleTests
     }
 
     [Fact]
+    public async Task ContainerNode_ConcurrentDispose_DisposesChildrenOnce()
+    {
+        var child = new BlockingDisposeNode();
+        var container = Layouts.Vertical(child);
+
+        var firstDispose = Task.Run(container.Dispose);
+        await child.DisposeStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var secondDispose = Task.Run(container.Dispose);
+        try
+        {
+            await secondDispose.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            child.AllowDisposeToFinish.TrySetResult();
+            await firstDispose.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+
+        Assert.Equal(1, child.DisposeCount);
+    }
+
+    [Fact]
     public void LayoutNode_OnDeactivate_DoesNotDisposeSubjects()
     {
         // Arrange
@@ -389,5 +413,30 @@ public class LayoutNodeLifecycleTests
         {
             node.Submitted.Subscribe(_ => { });
         });
+    }
+
+    private sealed class BlockingDisposeNode : LayoutNode
+    {
+        public TaskCompletionSource DisposeStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource AllowDisposeToFinish { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int DisposeCount { get; private set; }
+
+        public override Size Measure(Size available) => Size.Zero;
+
+        public override void Render(IRenderContext context, Rect bounds)
+        {
+        }
+
+        public override void Dispose()
+        {
+            DisposeCount++;
+            DisposeStarted.TrySetResult();
+            AllowDisposeToFinish.Task.GetAwaiter().GetResult();
+            base.Dispose();
+        }
     }
 }

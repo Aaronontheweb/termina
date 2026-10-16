@@ -53,6 +53,12 @@ public static class DisplayWidth
         if (string.IsNullOrEmpty(text))
             return 0;
 
+        // Each printable ASCII char is one text element and one column. The scan does not allocate.
+        // The cell walk below allocates one string for each text element, which costs about 16 MB
+        // for a 600,000-char line.
+        if (!text.AsSpan().ContainsAnyExceptInRange('\u0020', '\u007E'))
+            return text.Length;
+
         var columns = 0;
         foreach (var cell in EnumerateCells(text))
             columns += cell.ColumnWidth;

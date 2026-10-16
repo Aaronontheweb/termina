@@ -234,12 +234,12 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, ISc
 
     private void OnContentInvalidated()
     {
-        // Content changed - check if we need to auto-scroll
-        ApplyAutoScrollPolicy();
+        // Heights are stale until the next Measure, so Measure makes the real tail decision.
+        ApplyAutoScrollPolicy(IsNearBottom);
         _invalidated.OnNext(Unit.Default);
     }
 
-    private void ApplyAutoScrollPolicy()
+    private void ApplyAutoScrollPolicy(bool wasNearBottom)
     {
         switch (AutoScroll)
         {
@@ -247,8 +247,10 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, ISc
                 _scrollOffset = MaxScroll;
                 break;
             case AutoScrollPolicy.TailWhenAtBottom:
-                // If we were at or near the bottom before, stay at the bottom
-                if (IsNearBottom || _previousContentHeight <= _viewportHeight)
+                // Tail if the view was near the bottom before the measure (a large update
+                // moves MaxScroll away from the old offset), is near it now (a shrink puts
+                // the old offset past MaxScroll), or the content fit the viewport.
+                if (wasNearBottom || IsNearBottom || _previousContentHeight <= _viewportHeight)
                 {
                     _scrollOffset = MaxScroll;
                 }
@@ -274,6 +276,8 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, ISc
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
+        var wasNearBottom = IsNearBottom;
+
         // Calculate available width accounting for scrollbar
         var contentWidth = ShowScrollbar && available.Width > 1
             ? available.Width - 1
@@ -290,7 +294,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode, ISc
         // Apply auto-scroll if content height changed
         if (_contentHeight != _previousContentHeight)
         {
-            ApplyAutoScrollPolicy();
+            ApplyAutoScrollPolicy(wasNearBottom);
         }
 
         var width = WidthConstraint.Compute(available.Width, contentSize.Width + (ShowScrollbar ? 1 : 0), available.Width);

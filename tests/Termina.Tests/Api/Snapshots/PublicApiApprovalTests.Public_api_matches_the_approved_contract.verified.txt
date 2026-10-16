@@ -1393,6 +1393,7 @@ namespace Termina.Layout
         public bool CanFocus { get; }
         protected string CommittedDisplayPrefix { get; }
         public Termina.Terminal.Color CursorColor { get; set; }
+        public int CursorPosition { get; set; }
         public int FocusPriority { get; }
         public Termina.Terminal.Color? Foreground { get; set; }
         public bool HasFocus { get; }
@@ -1431,6 +1432,7 @@ namespace Termina.Layout
         public virtual bool HandlePaste(Termina.Input.PasteEvent paste) { }
         protected bool HandleRightArrow(System.ConsoleModifiers modifiers) { }
         protected virtual bool HandleUpArrow() { }
+        public void MoveCursorToEnd() { }
         public override void OnActivate() { }
         public void OnBlurred() { }
         public override void OnDeactivate() { }
