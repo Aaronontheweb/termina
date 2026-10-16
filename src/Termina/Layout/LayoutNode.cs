@@ -183,6 +183,7 @@ public abstract class ContainerNode : LayoutNode, IContainerNode, IInvalidatingN
     private readonly List<ILayoutNode> _children = new();
     private readonly List<IDisposable> _childInvalidationSubscriptions = new();
     private readonly Subject<Unit> _invalidated = new();
+    private int _disposeState;
 
     /// <inheritdoc />
     public Observable<Unit> Invalidated => _invalidated;
@@ -231,6 +232,12 @@ public abstract class ContainerNode : LayoutNode, IContainerNode, IInvalidatingN
     /// <inheritdoc />
     public override void Dispose()
     {
+        // Layout teardown can race with a render pass that retires the same container.
+        // Claim disposal atomically before completing the R3 subject; Subject.Dispose()
+        // deliberately throws if OnCompleted() is attempted a second time.
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+            return;
+
         // Dispose child invalidation subscriptions
         foreach (var subscription in _childInvalidationSubscriptions)
         {
