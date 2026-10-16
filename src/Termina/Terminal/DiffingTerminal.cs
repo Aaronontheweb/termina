@@ -109,6 +109,16 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
             return;
         }
 
+        WriteTextElements(text);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="text"/> one text element at a time. This is the general write loop.
+    /// <see cref="Write(string)"/> uses it for each write that is not only printable ASCII.
+    /// Tests call it directly as the reference for the ASCII fast path.
+    /// </summary>
+    internal void WriteTextElements(string text)
+    {
         foreach (var cell in DisplayWidth.EnumerateCells(text))
         {
             WriteTextElementToBuffer(cell.Text, cell.ColumnWidth);
