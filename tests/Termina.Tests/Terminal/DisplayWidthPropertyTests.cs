@@ -194,6 +194,19 @@ public class DisplayWidthPropertyTests
             Assert.Equal(DisplayWidth.GetColumnCount(c.ToString()), DisplayWidth.GetColumnCount(c)),
             iter: Iter);
 
+    [Fact]
+    public void A5_AsciiText_MatchesTheCellWalk() =>
+        // GetColumnCount skips the cell walk for printable ASCII. Text near the edges of that range
+        // (controls, DEL, Latin-1, combining marks, keycap parts) must give the same count as the walk.
+        Gen.OneOf(
+                Gen.Char['\u0020', '\u007E'],
+                Gen.OneOfConst('\u001F', '\u007F', '\u0080', '\u00A0', '\u00E9', '\u0301', '\n', '\t', Vs16, Keycap, Cjk))
+            .Array[0, 40]
+            .Select(chars => new string(chars))
+            .Sample(s =>
+                Assert.Equal(DisplayWidth.EnumerateCells(s).Sum(c => c.ColumnWidth), DisplayWidth.GetColumnCount(s)),
+                iter: Iter);
+
     // ===== B. Width composition =====
 
     [Fact]
