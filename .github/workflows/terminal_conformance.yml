@@ -19,10 +19,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install .NET SDK
-        uses: actions/setup-dotnet@v6.0.0
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: ./global.json
 
@@ -33,7 +33,7 @@ jobs:
         run: bash tests/conformance/linux/run-baseline-capture.sh "$RUNNER_TEMP/conformance-baseline"
 
       - name: Upload baseline artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: conformance-baseline
@@ -45,10 +45,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install .NET SDK
-        uses: actions/setup-dotnet@v6.0.0
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: ./global.json
 
@@ -62,7 +62,7 @@ jobs:
         run: bash tests/conformance/linux/run-kitty-selection.sh "$RUNNER_TEMP/conformance-kitty"
 
       - name: Upload kitty artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: conformance-kitty
@@ -78,10 +78,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install .NET SDK
-        uses: actions/setup-dotnet@v6.0.0
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: ./global.json
 
@@ -97,7 +97,7 @@ jobs:
         run: bash tests/conformance/linux/run-tmux-capture.sh "$RUNNER_TEMP/conformance-tmux-${{ matrix.tmux_mouse }}"
 
       - name: Upload tmux artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: conformance-tmux-${{ matrix.tmux_mouse }}
@@ -109,10 +109,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install .NET SDK
-        uses: actions/setup-dotnet@v6.0.0
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: ./global.json
 
@@ -126,7 +126,7 @@ jobs:
         run: bash tests/conformance/linux/run-kitty-tmux-selection.sh "$RUNNER_TEMP/conformance-kitty-tmux"
 
       - name: Upload kitty+tmux artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: conformance-kitty-tmux
