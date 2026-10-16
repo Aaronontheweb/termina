@@ -61,8 +61,6 @@ the color. This includes the border cells, the padding, and the content area.
 var surface = Color.FromRgb(23, 27, 34);
 
 new PanelNode()
-    .WithTitle("Logs")
-    .WithTitleColor(Color.Cyan)
     .WithBorder(BorderStyle.None)
     .WithBackground(surface)
     .WithPadding(1)
