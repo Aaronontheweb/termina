@@ -19,6 +19,7 @@
     <Project Path="demos/Termina.Demo.Wizard/Termina.Demo.Wizard.csproj" />
     <Project Path="demos/Termina.Demo.Inline/Termina.Demo.Inline.csproj" />
     <Project Path="demos/Termina.Demo.KittyScroll/Termina.Demo.KittyScroll.csproj" />
+    <Project Path="demos/Termina.Demo.WheelRouting/Termina.Demo.WheelRouting.csproj" />
     <Project Path="demos/Termina.Demo.Conformance/Termina.Demo.Conformance.csproj" />
   </Folder>
   <Folder Name="/tests/">
