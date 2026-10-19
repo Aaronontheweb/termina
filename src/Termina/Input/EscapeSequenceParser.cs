@@ -44,7 +44,7 @@ namespace Termina.Input;
 /// </remarks>
 internal sealed class EscapeSequenceParser
 {
-    private enum State { Normal, AfterEscape, InBracketSequence, InSs3Sequence, PasteBuffering }
+    private enum State { Normal, AfterEscape, InBracketSequence, IgnoringControlSequence, InSs3Sequence, PasteBuffering }
 
     private State _state = State.Normal;
     private readonly StringBuilder _seqBuffer = new();
@@ -192,6 +192,16 @@ internal sealed class EscapeSequenceParser
                     break;
                 }
 
+                if (_seqBuffer.Length >= UnknownSequenceFallbackDecoder.MaxSequenceLength)
+                {
+                    TerminaTrace.Input.Debug(this, "ESP: control sequence passes {0} chars, ignoring it",
+                        UnknownSequenceFallbackDecoder.MaxSequenceLength);
+                    _seqBuffer.Clear();
+                    _state = State.IgnoringControlSequence;
+                    ProcessCore(key, results);
+                    break;
+                }
+
                 _seqBuffer.Append(key.KeyChar);
                 var seq = new InputSequence(_seqBuffer.ToString());
 
@@ -304,6 +314,18 @@ internal sealed class EscapeSequenceParser
                     _seqBuffer.Clear();
                     _state = State.Normal;
                 }
+                break;
+
+            case State.IgnoringControlSequence:
+                if (!ControlSequenceSyntax.IsControlSequenceByte(key.KeyChar))
+                {
+                    _state = State.Normal;
+                    ProcessCore(key, results);
+                    break;
+                }
+
+                if (ControlSequenceSyntax.IsFinalByte(key.KeyChar))
+                    _state = State.Normal;
                 break;
 
             case State.InSs3Sequence:

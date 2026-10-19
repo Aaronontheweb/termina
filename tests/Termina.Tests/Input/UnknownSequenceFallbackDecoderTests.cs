@@ -36,25 +36,38 @@ public class UnknownSequenceFallbackDecoderTests
     }
 
     [Fact]
-    public void CouldLeadToRecognizedSequence_AcceptsParametersUpToTheLimit()
-    {
-        var atLimit = "[" + new string('1', UnknownSequenceFallbackDecoder.MaxSequenceLength - 1);
-
-        Assert.True(UnknownSequenceFallbackDecoder.CouldLeadToRecognizedSequence(atLimit));
-        Assert.False(UnknownSequenceFallbackDecoder.CouldLeadToRecognizedSequence(atLimit + "1"));
-    }
-
-    [Fact]
-    public void Parser_FlushesSequenceThatPassesTheLimit()
+    public void Parser_DiscardsSequenceThatPassesTheLimit()
     {
         var parser = new EscapeSequenceParser();
         var parameters = new string('1', UnknownSequenceFallbackDecoder.MaxSequenceLength);
 
-        var events = Feed(parser, "\x1b[" + parameters);
+        var events = Feed(parser, "\x1b[" + parameters + "ux");
 
-        Assert.Equal(parameters.Length + 2, events.Count);
-        AssertKey(events[0], ConsoleKey.Escape, '\x1b');
-        AssertKey(events[1], ConsoleKey.None, '[');
+        AssertKey(Assert.Single(events), ConsoleKey.X, 'x');
+        Assert.False(parser.IsBufferingEscape);
+    }
+
+    [Fact]
+    public void Parser_SequenceAtTheLimit_IsDecoded()
+    {
+        var parser = new EscapeSequenceParser();
+        const string keyCode = "97;1";
+        var padding = new string('0', UnknownSequenceFallbackDecoder.MaxSequenceLength - "[".Length - keyCode.Length - "u".Length);
+
+        var events = Feed(parser, "\x1b[" + padding + keyCode + "u");
+
+        AssertKey(Assert.Single(events), ConsoleKey.A, 'a');
+    }
+
+    [Fact]
+    public void Parser_InvalidByteAfterTheLimit_IsProcessedAsNewInput()
+    {
+        var parser = new EscapeSequenceParser();
+        var parameters = new string('1', UnknownSequenceFallbackDecoder.MaxSequenceLength);
+
+        var events = Feed(parser, "\x1b[" + parameters + "\r");
+
+        AssertKey(Assert.Single(events), ConsoleKey.Enter, '\r');
         Assert.False(parser.IsBufferingEscape);
     }
 

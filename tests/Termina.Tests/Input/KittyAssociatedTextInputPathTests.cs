@@ -48,6 +48,8 @@ public sealed class KittyAssociatedTextInputPathTests
         "\x1b[97;2;?u",
         // A surrogate code point in the text field.
         "\x1b[97;1;55296u",
+        // A sequence longer than the buffer limit.
+        "\x1b[0;1;" + string.Join(':', Enumerable.Repeat("97", 400)) + "u",
     };
 
     [Theory]

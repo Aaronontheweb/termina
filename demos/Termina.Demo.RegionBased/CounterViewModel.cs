@@ -4,6 +4,7 @@
 using R3;
 using Termina.Input;
 using Termina.Reactive;
+using Termina.Terminal;
 
 namespace Termina.Demo.RegionBased;
 
@@ -58,7 +59,10 @@ public class CounterViewModel : ReactiveViewModel
 
             case ConsoleKey.Backspace:
                 if (InputText.Value.Length > 0)
-                    InputText.Value = InputText.Value[..^1];
+                {
+                    var text = InputText.Value;
+                    InputText.Value = text[..DisplayWidth.GetPreviousTextElementIndex(text, text.Length)];
+                }
                 break;
 
             case ConsoleKey.Escape:
@@ -66,7 +70,12 @@ public class CounterViewModel : ReactiveViewModel
                 break;
 
             default:
-                // Handle printable characters for input
+                if (key.Text is not null)
+                {
+                    InputText.Value += key.Text;
+                    break;
+                }
+
                 if (key.KeyInfo.KeyChar >= 32 && key.KeyInfo.KeyChar < 127)
                 {
                     InputText.Value += key.KeyInfo.KeyChar;

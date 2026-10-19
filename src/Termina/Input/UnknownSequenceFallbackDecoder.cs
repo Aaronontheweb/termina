@@ -9,12 +9,13 @@ namespace Termina.Input;
 internal static class UnknownSequenceFallbackDecoder
 {
     /// <summary>
-    /// The maximum length of a buffered sequence, including the leading <c>[</c>.
+    /// The maximum length of a buffered control sequence, including the leading <c>[</c>.
     /// </summary>
     /// <remarks>
     /// A kitty CSI-u sequence with associated text has one colon-separated code point for each character,
-    /// so input method editor (IME) text can make it long. The limit allows more than 100 code points of
-    /// associated text and stops a stray <c>ESC [</c> from buffering input without limit.
+    /// so text with many characters makes a long sequence. The limit allows more than 100 code points of
+    /// associated text. The parser ignores a longer sequence up to and including its final byte, so a stray
+    /// <c>ESC [</c> cannot buffer input without limit and an over-long sequence does not become raw key input.
     /// </remarks>
     public const int MaxSequenceLength = 1024;
 
@@ -34,7 +35,7 @@ internal static class UnknownSequenceFallbackDecoder
         if (BracketedPasteDecoder.CouldBeStartSequence(sequence))
             return true;
 
-        if (text.Length > MaxSequenceLength || text.Length == 0 || text[0] != '[')
+        if (text.Length == 0 || text[0] != '[')
             return false;
 
         return ControlSequenceSyntax.IsIncomplete(text.AsSpan(1));
