@@ -72,7 +72,7 @@ internal static class KittyCsiUKeyboardDecoder
         if (key == TerminaKey.None && textOutput is null)
             return true;
 
-        result = new KeyStroke(key, modifiers, phase, textOutput);
+        result = new KeyStroke(key, modifiers, phase, textOutput, associatedText);
         return true;
     }
 

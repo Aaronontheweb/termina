@@ -304,11 +304,14 @@ public class EscapeSequenceParserKittyTests
     [InlineData("\x1b[13u")]
     [InlineData("\x1b[57352u")]
     [InlineData("\x1b[97;1:3u")]
+    [InlineData("\x1b[97u")]
+    [InlineData("\x1b[114;5u")]
+    [InlineData("\x1b[49;2u")]
     public void CsiU_KeyWithoutPrintableText_HasNoText(string sequence)
     {
         var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
-        foreach (var press in FeedString(parser, sequence).OfType<KeyPressed>())
-            Assert.Null(press.Text);
+        var events = FeedString(parser, sequence);
+        Assert.All(events.OfType<KeyPressed>(), press => Assert.Null(press.Text));
     }
 
     // --- CSI arrows are keyboard keys until DECCKM is confirmed ---

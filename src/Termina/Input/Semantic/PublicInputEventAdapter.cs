@@ -38,16 +38,8 @@ internal static class PublicInputEventAdapter
             keyStroke.Modifiers.HasFlag(KeyModifiers.Alt),
             keyStroke.Modifiers.HasFlag(KeyModifiers.Control)))
         {
-            Text = PrintableText(keyStroke.Text),
+            Text = keyStroke.AssociatedText,
         }];
-    }
-
-    private static string? PrintableText(string? text)
-    {
-        if (string.IsNullOrEmpty(text) || text.Any(char.IsControl))
-            return null;
-
-        return text;
     }
 
     private static IReadOnlyList<IInputEvent> AdaptTextEntered(TextEntered textEntered)
