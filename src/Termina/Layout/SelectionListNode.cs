@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using R3;
+using Termina.Input;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -301,8 +302,13 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
     }
 
     /// <inheritdoc />
-    public bool HandleInput(ConsoleKeyInfo key)
+    public bool HandleInput(ConsoleKeyInfo key) => HandleInput(new KeyPressed(key));
+
+    /// <inheritdoc />
+    public bool HandleInput(KeyPressed input)
     {
+        var key = input.KeyInfo;
+
         // If editing "Other" text, forward to text input
         if (_isEditingOther && _otherInput != null)
         {
@@ -323,7 +329,7 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
                 return true;
             }
 
-            return _otherInput.HandleInput(key);
+            return _otherInput.HandleInput(input);
         }
 
         // Handle navigation and selection

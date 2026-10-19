@@ -36,7 +36,18 @@ internal static class PublicInputEventAdapter
             consoleKey,
             keyStroke.Modifiers.HasFlag(KeyModifiers.Shift),
             keyStroke.Modifiers.HasFlag(KeyModifiers.Alt),
-            keyStroke.Modifiers.HasFlag(KeyModifiers.Control)))];
+            keyStroke.Modifiers.HasFlag(KeyModifiers.Control)))
+        {
+            Text = PrintableText(keyStroke.Text),
+        }];
+    }
+
+    private static string? PrintableText(string? text)
+    {
+        if (string.IsNullOrEmpty(text) || text.Any(char.IsControl))
+            return null;
+
+        return text;
     }
 
     private static IReadOnlyList<IInputEvent> AdaptTextEntered(TextEntered textEntered)

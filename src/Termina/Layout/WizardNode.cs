@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using R3;
+using Termina.Input;
 using Termina.Diagnostics;
 using Termina.Rendering;
 using Termina.Terminal;
@@ -97,13 +98,17 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     }
 
     /// <inheritdoc />
-    public bool HandleInput(ConsoleKeyInfo key)
+    public bool HandleInput(ConsoleKeyInfo key) => HandleInput(new KeyPressed(key));
+
+    /// <inheritdoc />
+    public bool HandleInput(KeyPressed input)
     {
+        var key = input.KeyInfo;
         TerminaTrace.Input.Debug(this, "HandleInput: key={0}, contentNode={1}",
             key.Key, _contentNode != null ? "exists" : "null");
 
         // Delegate to focusable nodes in step content first (recursive tree walk)
-        if (_contentNode != null && DelegateInputToContent(_contentNode, key))
+        if (_contentNode != null && DelegateInputToContent(_contentNode, input))
         {
             TerminaTrace.Input.Debug(this, "HandleInput: delegated to child, key={0}", key.Key);
             return true;
@@ -125,8 +130,9 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     /// <summary>
     /// Recursively walk the content tree to find and delegate input to focusable children.
     /// </summary>
-    private static bool DelegateInputToContent(ILayoutNode node, ConsoleKeyInfo key)
+    private static bool DelegateInputToContent(ILayoutNode node, KeyPressed input)
     {
+        var key = input.KeyInfo;
         TerminaTrace.Input.Trace(node, "DelegateInput: visiting {0}, IsFocusable={1}, IsLayoutNode={2}",
             node.GetType().Name, node is IFocusable, node is LayoutNode);
 
@@ -135,7 +141,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         {
             TerminaTrace.Input.Debug(node, "DelegateInput: forwarding key={0} to {1}",
                 key.Key, node.GetType().Name);
-            if (focusable.HandleInput(key))
+            if (focusable.HandleInput(input))
                 return true;
             TerminaTrace.Input.Debug(node, "DelegateInput: {0} did not handle key={1}",
                 node.GetType().Name, key.Key);
@@ -149,7 +155,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
                 children.Count(), node.GetType().Name);
             foreach (var child in children)
             {
-                if (DelegateInputToContent(child, key))
+                if (DelegateInputToContent(child, input))
                     return true;
             }
         }

@@ -120,8 +120,12 @@ public sealed class FocusManager : IFocusManager, IDisposable
     }
 
     /// <inheritdoc />
-    public bool RouteInput(ConsoleKeyInfo key)
+    public bool RouteInput(ConsoleKeyInfo key) => RouteInput(new KeyPressed(key));
+
+    /// <inheritdoc />
+    public bool RouteInput(KeyPressed input)
     {
+        var key = input.KeyInfo;
         if (_focusStack.Count == 0)
         {
             TerminaTrace.Input.Trace(this, "RouteInput: no focus, key={0} not handled", key.Key);
@@ -137,7 +141,7 @@ public sealed class FocusManager : IFocusManager, IDisposable
             return false;
         }
 
-        var handled = current.HandleInput(key);
+        var handled = current.HandleInput(input);
         TerminaTrace.Input.Trace(this, "RouteInput: {0} key={1} handled={2}", current.GetType().Name, key.Key, handled);
         return handled;
     }

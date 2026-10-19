@@ -68,6 +68,16 @@ public interface IFocusManager
     bool RouteInput(ConsoleKeyInfo key);
 
     /// <summary>
+    /// Route a keyboard input event, including the text that the key produces, to the currently focused component.
+    /// </summary>
+    /// <remarks>
+    /// The default implementation calls <see cref="RouteInput(ConsoleKeyInfo)"/> with <see cref="KeyPressed.KeyInfo"/>.
+    /// </remarks>
+    /// <param name="input">The key event to route.</param>
+    /// <returns>True if the input was consumed, false if no component handled it.</returns>
+    bool RouteInput(KeyPressed input) => RouteInput(input.KeyInfo);
+
+    /// <summary>
     /// Depth-first tree walk collecting all focusable nodes where <see cref="IFocusable.CanFocus"/> is true.
     /// </summary>
     /// <param name="root">The root of the layout tree to walk.</param>
