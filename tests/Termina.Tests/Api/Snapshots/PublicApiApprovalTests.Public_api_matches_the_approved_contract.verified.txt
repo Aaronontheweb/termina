@@ -1342,7 +1342,8 @@ namespace Termina.Layout
         public bool Replace(Termina.Layout.SegmentId id, Termina.Components.Streaming.ITextSegment newSegment, bool keepTracked = true) { }
         public void ScrollDown(int lines = 1) { }
         public void ScrollToBottom() { }
-        public void ScrollUp(int lines = 1, int? viewportWidth = default) { }
+        public void ScrollUp(int lines = 1) { }
+        public void ScrollUp(int lines, int viewportWidth) { }
         public Termina.Layout.StreamingTextNode WithBackground(Termina.Terminal.Color color) { }
         public Termina.Layout.StreamingTextNode WithForeground(Termina.Terminal.Color color) { }
         public Termina.Layout.StreamingTextNode WithPrefix(string prefix, Termina.Terminal.Color? color = default) { }

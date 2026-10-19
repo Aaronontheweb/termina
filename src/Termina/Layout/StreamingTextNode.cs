@@ -467,12 +467,21 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     /// Scrolls up by the specified number of lines (only applies to PersistedStreamBuffer).
     /// </summary>
     /// <param name="lines">Number of lines to scroll.</param>
-    /// <param name="viewportWidth">
-    /// Content width for word wrapping. Uses the width of the last render when <see langword="null"/>.
-    /// </param>
-    public void ScrollUp(int lines = 1, int? viewportWidth = null)
+    /// <remarks>Uses the content width and height of the last render.</remarks>
+    public void ScrollUp(int lines = 1)
     {
-        ScrollUp(lines, viewportWidth ?? _lastViewportWidth, _lastViewportHeight);
+        ScrollUp(lines, _lastViewportWidth, _lastViewportHeight);
+    }
+
+    /// <summary>
+    /// Scrolls up by the specified number of lines (only applies to PersistedStreamBuffer).
+    /// </summary>
+    /// <param name="lines">Number of lines to scroll.</param>
+    /// <param name="viewportWidth">Content width for word wrapping.</param>
+    /// <remarks>Uses the content height of the last render.</remarks>
+    public void ScrollUp(int lines, int viewportWidth)
+    {
+        ScrollUp(lines, viewportWidth, _lastViewportHeight);
     }
 
     private void ScrollUp(int lines, int viewportWidth, int viewportHeight)
@@ -631,7 +640,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     /// </remarks>
     public bool CanScrollDown => _buffer is PersistedStreamBuffer p && p.ScrollOffset > 0;
 
-    void IScrollable.ScrollUp(int lines) => ScrollUp(lines, _lastViewportWidth);
+    void IScrollable.ScrollUp(int lines) => ScrollUp(lines);
 
     void IScrollable.ScrollDown(int lines) => ScrollDown(lines);
 
