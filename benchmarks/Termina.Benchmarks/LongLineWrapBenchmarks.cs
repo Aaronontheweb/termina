@@ -75,6 +75,11 @@ public class LongLineWrapBenchmarks
         return _textArea.Measure(new Size(Width, Height));
     }
 
+    // A frame measures the text area while its text stays the same, as the cursor blink does.
+    // The column count is cached, so this must not depend on the line length.
+    [Benchmark]
+    public Size TextAreaMeasureUnchanged() => _textArea.Measure(new Size(Width, Height));
+
     [Benchmark]
     public void RenderStreamingTextNode() => _node.Render(_context, _bounds);
 
