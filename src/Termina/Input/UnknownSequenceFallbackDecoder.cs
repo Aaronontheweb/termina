@@ -9,9 +9,24 @@ namespace Termina.Input;
 internal static class UnknownSequenceFallbackDecoder
 {
     /// <summary>
+    /// The maximum length of a buffered sequence, including the leading <c>[</c>.
+    /// </summary>
+    /// <remarks>
+    /// A kitty CSI-u sequence with associated text has one colon-separated code point for each character,
+    /// so input method editor (IME) text can make it long. The limit allows more than 100 code points of
+    /// associated text and stops a stray <c>ESC [</c> from buffering input without limit.
+    /// </remarks>
+    public const int MaxSequenceLength = 1024;
+
+    /// <summary>
     /// Returns <c>true</c> if the accumulated bracket sequence could still lead to a recognized
     /// escape sequence.
     /// </summary>
+    /// <remarks>
+    /// A sequence that has its final byte, and that no decoder recognized, is complete and unknown.
+    /// It is flushed as raw <see cref="KeyPressed"/> events rather than keeping the parser stuck in
+    /// <c>InBracketSequence</c>.
+    /// </remarks>
     public static bool CouldLeadToRecognizedSequence(InputSequence sequence)
     {
         var text = sequence.Text;
@@ -19,26 +34,10 @@ internal static class UnknownSequenceFallbackDecoder
         if (BracketedPasteDecoder.CouldBeStartSequence(sequence))
             return true;
 
-        // Complete but still-unrecognized CSI tilde-terminated sequences flush as raw
-        // KeyPressed events rather than keeping the parser stuck in InBracketSequence.
-        if (text.Length >= 3 && text[^1] == '~')
+        if (text.Length > MaxSequenceLength || text.Length == 0 || text[0] != '[')
             return false;
 
-        // Could be a CSI u sequence "[keycode;modifiersu".
-        if (text.Length >= 2
-            && text.Length <= 32
-            && (char.IsDigit(text[1]) || text[1] == ';' || text[1] == ':'))
-            return true;
-
-        // Could be an SGR mouse event "[<button;x;yM".
-        if (text.Length >= 2 && text[1] == '<' && text.Length <= 30)
-            return true;
-
-        // Could still become a bare CSI functional final: "[A" / "[B" etc.
-        if (text == "[")
-            return true;
-
-        return false;
+        return ControlSequenceSyntax.IsIncomplete(text.AsSpan(1));
     }
 
     public static IReadOnlyList<IInputEvent> ToRawKeyEvents(string sequence)

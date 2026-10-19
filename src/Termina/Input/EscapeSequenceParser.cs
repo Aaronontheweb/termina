@@ -180,6 +180,18 @@ internal sealed class EscapeSequenceParser
                 break;
 
             case State.InBracketSequence:
+                if (!ControlSequenceSyntax.IsControlSequenceByte(key.KeyChar))
+                {
+                    // A byte that cannot be part of a control sequence aborts it (ECMA-48).
+                    // Flush what was buffered and process the byte as new input, so an ESC
+                    // starts the next sequence and Enter stays Enter.
+                    UnknownSequenceFallbackDecoder.AppendRawKeyEvents(_seqBuffer.ToString(), results);
+                    _seqBuffer.Clear();
+                    _state = State.Normal;
+                    ProcessCore(key, results);
+                    break;
+                }
+
                 _seqBuffer.Append(key.KeyChar);
                 var seq = new InputSequence(_seqBuffer.ToString());
 
