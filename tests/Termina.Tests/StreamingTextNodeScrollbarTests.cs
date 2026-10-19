@@ -93,14 +93,10 @@ public class StreamingTextNodeScrollbarTests
         var context = new RegionRenderContext(terminal, 0, 0, 40, 10);
         node.Render(context, new Rect(0, 0, 40, 10));
 
-        // When AutoHide is false the scrollbar column is always reserved.
-        // With only 1 line and maxScroll=0 the DrawScrollbar method returns early
-        // (no thumb to draw), so the column stays blank — but the content area
-        // is still narrowed by 1. Verify content does NOT reach column 39.
-        // (This just confirms the width reservation happens.)
-        // Content "Only one line" is 14 chars wide, so last content char is at col 13.
-        // Column 39 should be blank (space).
-        Assert.Equal(' ', terminal.GetChar(39, 0));
+        // With AutoHide false the scrollbar column is reserved and drawn.
+        // All content is visible, so the thumb fills the whole track.
+        for (var y = 0; y < 10; y++)
+            Assert.Equal('█', terminal.GetChar(39, y));
     }
 
     [Fact]

@@ -195,7 +195,7 @@ public class PersistedStreamBufferStyledTests
         }
 
         // Scroll up
-        buffer.ScrollUp(5, 80);
+        buffer.ScrollUp(5, 80, 10);
 
         var visible = buffer.GetVisibleStyledLines(10, 80);
         // Should see earlier lines after scrolling up
