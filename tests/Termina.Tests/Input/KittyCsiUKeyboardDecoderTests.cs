@@ -16,6 +16,12 @@ public class KittyCsiUKeyboardDecoderTests
     [InlineData("[49;2;33u", ConsoleKey.D1, "!", true, false, false)]
     [InlineData("[0;1;229u", ConsoleKey.None, "å", false, false, false)]
     [InlineData("[0;1;72:105u", ConsoleKey.None, "Hi", false, false, false)]
+    [InlineData("[0;;229u", ConsoleKey.None, "\u00e5", false, false, false)]
+    [InlineData("[97;;65u", ConsoleKey.A, "A", false, false, false)]
+    [InlineData("[97;2;u", ConsoleKey.A, "a", true, false, false)]
+    [InlineData("[97:65;2;65u", ConsoleKey.A, "A", true, false, false)]
+    [InlineData("[101;1;101:769u", ConsoleKey.E, "e\u0301", false, false, false)]
+    [InlineData("[0;1;128512u", ConsoleKey.None, "\U0001F600", false, false, false)]
     public void TryDecode_StandardSequence_ReturnsKeyStroke(
         string sequence,
         ConsoleKey expectedKey,
@@ -88,6 +94,22 @@ public class KittyCsiUKeyboardDecoderTests
     [InlineData("[13;1:badu")]
     [InlineData("[13;1x")]
     [InlineData("13;1u")]
+    [InlineData("[+13;1u")]
+    [InlineData("[13; 1u")]
+    [InlineData("[13;1:u")]
+    [InlineData("[97;2;xu")]
+    [InlineData("[97;2;?u")]
+    [InlineData("[97;1;+97u")]
+    [InlineData("[97;1;72::105u")]
+    [InlineData("[97;1;55296u")]
+    [InlineData("[97;1;57343u")]
+    [InlineData("[97;1;1114112u")]
+    [InlineData("[97;1;99999999999u")]
+    [InlineData("[97;1;27u")]
+    [InlineData("[97;1;127u")]
+    [InlineData("[97;1;155u")]
+    [InlineData("[97;1;97;5u")]
+    [InlineData("[97;1;97;u")]
     public void TryDecode_MalformedSequence_ReturnsFalse(string sequence)
     {
         var decoded = KittyCsiUKeyboardDecoder.TryDecode(sequence, out var keyStroke);

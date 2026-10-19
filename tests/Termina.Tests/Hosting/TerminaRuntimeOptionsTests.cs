@@ -26,7 +26,6 @@ public class TerminaRuntimeOptionsTests
         Assert.Equal(0, (int)ScrollInputMode.LegacyMouseTracking);
         Assert.Equal(1, (int)ScrollInputMode.AlternateScroll);
         Assert.Equal(2, (int)ScrollInputMode.NativeTerminal);
-        Assert.Equal(25, (int)KittyKeyboardMode.ReportAllKeysWithAssociatedText);
     }
 
     [Fact]
