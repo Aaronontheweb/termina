@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using Termina.Components.Streaming;
 using Termina.Input;
 using Termina.Layout;
 using Termina.Reactive;
@@ -75,6 +76,49 @@ public class MouseScrollRoutingTests
 
         // After scrolling up, can scroll back down
         Assert.True(node.CanScrollDown);
+    }
+
+    [Fact]
+    public void ScrollUp_StopsWhenTheOldestContentFillsTheViewport()
+    {
+        var buffer = new PersistedStreamBuffer();
+        var node = new StreamingTextNode(buffer);
+        for (var i = 0; i < 30; i++)
+            node.AppendLine($"Line {i}");
+
+        var terminal = new VirtualTerminal(40, 10);
+        var context = new RegionRenderContext(terminal, 0, 0, 40, 10);
+        node.Render(context, new Rect(0, 0, 40, 10));
+
+        ((IScrollable)node).ScrollUp(100);
+
+        Assert.Equal(20, buffer.ScrollOffset);
+        Assert.False(node.CanScrollUp);
+        Assert.Equal(
+            Enumerable.Range(0, 10).Select(index => $"Line {index}"),
+            buffer.GetVisibleLines(10, 40));
+    }
+
+    [Fact]
+    public void Render_ClampsAnExistingOffsetAfterTheViewportGetsTaller()
+    {
+        var buffer = new PersistedStreamBuffer();
+        var node = new StreamingTextNode(buffer);
+        for (var i = 0; i < 30; i++)
+            node.AppendLine($"Line {i}");
+
+        var terminal = new VirtualTerminal(40, 10);
+        var context = new RegionRenderContext(terminal, 0, 0, 40, 10);
+        node.Render(context, new Rect(0, 0, 40, 1));
+        ((IScrollable)node).ScrollUp(100);
+        Assert.Equal(29, buffer.ScrollOffset);
+
+        node.Render(context, new Rect(0, 0, 40, 10));
+
+        Assert.Equal(20, buffer.ScrollOffset);
+        Assert.Equal(
+            Enumerable.Range(0, 10).Select(index => $"Line {index}"),
+            buffer.GetVisibleLines(10, 40));
     }
 
     [Fact]

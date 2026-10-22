@@ -623,7 +623,7 @@ var stream = StreamingTextNode.Create()
 | `ThumbColor` | `Color?` | `White` | Thumb foreground color |
 | `AutoHide` | `bool` | `true` | Hide scrollbar when content fits in viewport |
 
-The scrollbar occupies 1 column on the right edge, reducing the content area width by 1. When `AutoHide` is `true` (the default), the full width is available until content exceeds the viewport.
+The scrollbar occupies 1 column on the right edge, reducing the content area width by 1. When `AutoHide` is `false`, the scrollbar is always drawn. A thumb that fills the track shows that all content fits. When `AutoHide` is `true` (the default), the full width is available until content exceeds the viewport.
 
 ## Mouse Wheel Scrolling
 
@@ -671,6 +671,8 @@ For persisted buffers:
 var stream = StreamingTextNode.Create();
 
 // Manual scrolling
+// Without a width, ScrollUp uses the width and height of the last render.
+stream.ScrollUp(lines: 5);
 stream.ScrollUp(lines: 5, viewportWidth: 80);
 stream.ScrollDown(lines: 5);
 stream.ScrollToBottom();
@@ -768,7 +770,7 @@ StreamingTextNode.CreateWindowed(windowSize: 100)
 
 | Method | Description |
 |--------|-------------|
-| `.ScrollUp(lines, width)` | Scroll up |
+| `.ScrollUp(lines)` / `.ScrollUp(lines, width)` | Scroll up, never past the oldest full viewport |
 | `.ScrollDown(lines)` | Scroll down |
 | `.ScrollToBottom()` | Jump to bottom |
 | `.HandleInput(key, height, width)` | Handle scroll keys |
