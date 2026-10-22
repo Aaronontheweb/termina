@@ -173,6 +173,11 @@ public class CustomInput : LayoutNode, IFocusable
 }
 ```
 
+`IFocusable` also has a `HandleInput(KeyPressed)` overload.
+Its default implementation calls `HandleInput(ConsoleKeyInfo)` with `KeyPressed.KeyInfo`.
+Implement it when your component accepts text, because `KeyPressed.Text` can contain more than one character.
+A component that forwards input to child components must forward the `KeyPressed` event, not only `KeyInfo`.
+
 ## ViewModel Input Observable
 
 Keys not consumed by the capture or bubble phases arrive at the ViewModel's `Input` observable:
@@ -249,15 +254,23 @@ private void HandleKey(KeyPressed key)
 ```csharp
 private void HandleKey(KeyPressed key)
 {
-    var ch = key.KeyInfo.KeyChar;
-
-    if (!char.IsControl(ch))
+    if (key.Text is not null)
     {
-        // Regular character typed
+        Text += key.Text;
+        return;
+    }
+
+    var ch = key.KeyInfo.KeyChar;
+    if (ch != '\0' && !char.IsControl(ch))
+    {
         Text += ch;
     }
 }
 ```
+
+`KeyPressed.Text` contains the text that the key press produces, when the terminal reports it.
+The kitty keyboard protocol can report text with more than one UTF-16 character in one key event, for example an emoji or a letter with a combining accent.
+`KeyInfo.KeyChar` contains only the first UTF-16 character of that text.
 
 ## Mouse Input
 
@@ -467,7 +480,7 @@ Focus.PushFocus(_selectionList);  // Arrow keys, Enter work automatically
 
 // ❌ Avoid - Manually routing input to components
 Input.OfType<KeyPressed>()
-    .Subscribe(k => _selectionList.HandleInput(k.KeyInfo));
+    .Subscribe(k => _selectionList.HandleInput(k));
 ```
 
 ### 3. Use ViewModel.Input for State Changes

@@ -130,7 +130,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             }
 
             // Let the selection list handle the input
-            _decisionList.HandleInput(keyInfo);
+            _decisionList.HandleInput(key);
             return;
         }
 
@@ -158,7 +158,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         // When not generating, let the text input handle keys (including history via Up/Down)
         if (!ViewModel.IsGenerating.Value)
         {
-            _promptInput.HandleInput(keyInfo);
+            _promptInput.HandleInput(key);
         }
     }
 

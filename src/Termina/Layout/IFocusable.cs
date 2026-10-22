@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using Termina.Input;
+
 namespace Termina.Layout;
 
 /// <summary>
@@ -52,4 +54,16 @@ public interface IFocusable : ILayoutNode
     /// <param name="key">The key info to handle.</param>
     /// <returns>True if the input was consumed, false to pass to the next handler.</returns>
     bool HandleInput(ConsoleKeyInfo key);
+
+    /// <summary>
+    /// Handle a keyboard input event, including the text that the key produces.
+    /// </summary>
+    /// <remarks>
+    /// The default implementation calls <see cref="HandleInput(ConsoleKeyInfo)"/> with <see cref="KeyPressed.KeyInfo"/>.
+    /// Implement this member to receive <see cref="KeyPressed.Text"/>, which can contain more than one character.
+    /// A component that forwards input to child components must forward the <see cref="KeyPressed"/> event.
+    /// </remarks>
+    /// <param name="input">The key event to handle.</param>
+    /// <returns>True if the input was consumed, false to pass to the next handler.</returns>
+    bool HandleInput(KeyPressed input) => HandleInput(input.KeyInfo);
 }

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using R3;
+using Termina.Input;
 using Termina.Terminal;
 
 namespace Termina.Rendering;
@@ -166,8 +167,20 @@ public sealed class TextInput : IRenderable, IDisposable
     /// </summary>
     /// <param name="key">The key info from the console.</param>
     /// <returns>True if the key was consumed by this component.</returns>
-    public bool HandleKey(ConsoleKeyInfo key)
+    public bool HandleKey(ConsoleKeyInfo key) => HandleKey(new KeyPressed(key));
+
+    /// <summary>
+    /// Handles a key press event, including the text that the key produces. Returns true if the key was handled.
+    /// </summary>
+    /// <remarks>
+    /// When <see cref="KeyPressed.Text"/> is set, the component inserts all of that text, which can contain
+    /// more than one character. Use this overload when the terminal can report the text of a key press.
+    /// </remarks>
+    /// <param name="input">The key event.</param>
+    /// <returns>True if the key was consumed by this component.</returns>
+    public bool HandleKey(KeyPressed input)
     {
+        var key = input.KeyInfo;
         if (!_isFocused)
             return false;
 
@@ -226,16 +239,22 @@ public sealed class TextInput : IRenderable, IDisposable
                 return true;
 
             default:
-                // Insert printable character
+                if (!string.IsNullOrEmpty(input.Text))
+                    return InsertText(input.Text);
+
                 if (key.KeyChar != '\0' && !char.IsControl(key.KeyChar))
-                {
-                    _text = _text.Insert(_cursorPosition, key.KeyChar.ToString());
-                    _cursorPosition++;
-                    MarkDirty();
-                    return true;
-                }
+                    return InsertText(key.KeyChar.ToString());
+
                 return false;
         }
+    }
+
+    private bool InsertText(string text)
+    {
+        _text = _text.Insert(_cursorPosition, text);
+        _cursorPosition += text.Length;
+        MarkDirty();
+        return true;
     }
 
     /// <summary>

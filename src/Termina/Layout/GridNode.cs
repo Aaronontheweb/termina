@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using R3;
+using Termina.Input;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -783,8 +784,12 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
     }
 
     /// <inheritdoc />
-    public bool HandleInput(ConsoleKeyInfo key)
+    public bool HandleInput(ConsoleKeyInfo key) => HandleInput(new KeyPressed(key));
+
+    /// <inheritdoc />
+    public bool HandleInput(KeyPressed input)
     {
+        var key = input.KeyInfo;
         if (NavigationMode == GridNavigationMode.None)
             return false;
 
@@ -832,7 +837,7 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
                     if (currentCell is IFocusable focusable && focusable.CanFocus)
                     {
                         // Let the cell handle it
-                        return focusable.HandleInput(key);
+                        return focusable.HandleInput(input);
                     }
                 }
                 return false; // Let parent handle Tab for focus cycling
@@ -844,7 +849,7 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
                     var currentCell = _cells[_focusedRow, _focusedCol];
                     if (currentCell is IFocusable focusable && focusable.HasFocus)
                     {
-                        return focusable.HandleInput(key);
+                        return focusable.HandleInput(input);
                     }
                 }
                 return false;

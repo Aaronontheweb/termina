@@ -262,7 +262,56 @@ public class EscapeSequenceParserKittyTests
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
         Assert.Equal(ConsoleKey.A, press.KeyInfo.Key);
+        Assert.Equal('A', press.KeyInfo.KeyChar);
         Assert.True((press.KeyInfo.Modifiers & ConsoleModifiers.Shift) != 0);
+    }
+
+    [Fact]
+    public void CsiU_EmptyModifierField_TextOnlyEvent_IsParsed()
+    {
+        // CSI 0;;229 u → text-only event "å"; an empty modifier field means no modifiers.
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
+        var events = FeedString(parser, "\x1b[0;;229u");
+        var press = Assert.IsType<KeyPressed>(Assert.Single(events));
+        Assert.Equal(ConsoleKey.None, press.KeyInfo.Key);
+        Assert.Equal('\u00e5', press.KeyInfo.KeyChar);
+        Assert.Equal("\u00e5", press.Text);
+        Assert.Equal((ConsoleModifiers)0, press.KeyInfo.Modifiers);
+    }
+
+    [Fact]
+    public void CsiU_MultipleCodePoints_EmitOneEventWithFullText()
+    {
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
+        var events = FeedString(parser, "\x1b[0;1;72:105u");
+        var press = Assert.IsType<KeyPressed>(Assert.Single(events));
+        Assert.Equal('H', press.KeyInfo.KeyChar);
+        Assert.Equal("Hi", press.Text);
+    }
+
+    [Fact]
+    public void CsiU_LongAssociatedText_EmitsOneEvent()
+    {
+        // 39 characters: longer than the old 32-character prefix limit.
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
+        var events = FeedString(parser, "\x1b[0;1;97:98:99:100:101:102:103:104:105u");
+        var press = Assert.IsType<KeyPressed>(Assert.Single(events));
+        Assert.Equal("abcdefghi", press.Text);
+        Assert.False(parser.IsBufferingEscape);
+    }
+
+    [Theory]
+    [InlineData("\x1b[13u")]
+    [InlineData("\x1b[57352u")]
+    [InlineData("\x1b[97;1:3u")]
+    [InlineData("\x1b[97u")]
+    [InlineData("\x1b[114;5u")]
+    [InlineData("\x1b[49;2u")]
+    public void CsiU_KeyWithoutPrintableText_HasNoText(string sequence)
+    {
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
+        var events = FeedString(parser, sequence);
+        Assert.All(events.OfType<KeyPressed>(), press => Assert.Null(press.Text));
     }
 
     // --- CSI arrows are keyboard keys until DECCKM is confirmed ---
