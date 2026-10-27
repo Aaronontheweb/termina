@@ -13,11 +13,17 @@ internal abstract record TerminaInputEvent;
 /// Semantic key event independent of a specific terminal byte sequence or
 /// <see cref="ConsoleKeyInfo"/> transport shape.
 /// </summary>
+/// <param name="Key">The physical key.</param>
+/// <param name="Modifiers">The modifier keys.</param>
+/// <param name="Phase">The press, repeat, or release phase.</param>
+/// <param name="Text">The character of the key, from the terminal text or from the key code.</param>
+/// <param name="AssociatedText">The text that the terminal reports the key produces, if any.</param>
 internal sealed record KeyStroke(
     TerminaKey Key,
     KeyModifiers Modifiers = KeyModifiers.None,
     KeyEventPhase Phase = KeyEventPhase.Press,
-    string? Text = null) : TerminaInputEvent;
+    string? Text = null,
+    string? AssociatedText = null) : TerminaInputEvent;
 
 /// <summary>
 /// Text input that should be handled as text rather than as a physical key.

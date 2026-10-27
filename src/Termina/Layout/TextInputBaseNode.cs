@@ -281,8 +281,17 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
     /// <summary>
     /// Handle a key input event. Returns true if the event was handled.
     /// </summary>
-    public bool HandleInput(ConsoleKeyInfo key)
+    public bool HandleInput(ConsoleKeyInfo key) => HandleInput(new KeyPressed(key));
+
+    /// <summary>
+    /// Handle a key input event, including the text that the key produces. Returns true if the event was handled.
+    /// </summary>
+    /// <remarks>
+    /// When <see cref="KeyPressed.Text"/> is set, the node inserts all of that text at the cursor.
+    /// </remarks>
+    public bool HandleInput(KeyPressed input)
     {
+        var key = input.KeyInfo;
         if (_disposed)
         {
             TerminaTrace.Input.Debug(this, "HandleInput rejected: disposed");
@@ -306,6 +315,7 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
             ConsoleKey.DownArrow => HandleDownArrow(),
             ConsoleKey.Enter => HandleEnter(key.Modifiers),
             ConsoleKey.Escape => HandleEscape(),
+            _ when input.Text is { Length: > 0 } text => HandleText(text, key.Modifiers),
             _ when key.KeyChar != '\0' && !char.IsControl(key.KeyChar) => HandleCharacter(key.KeyChar, key.Modifiers),
             _ => false
         };
@@ -437,25 +447,26 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
 
     #region Concrete editing methods
 
-    protected bool HandleCharacter(char c, ConsoleModifiers modifiers)
+    protected bool HandleCharacter(char c, ConsoleModifiers modifiers) => HandleText(c.ToString(), modifiers);
+
+    private bool HandleText(string text, ConsoleModifiers modifiers)
     {
-        if (modifiers.HasFlag(ConsoleModifiers.Control) && (c == 'a' || c == 'A'))
+        var control = modifiers.HasFlag(ConsoleModifiers.Control);
+        if (control && text is "a" or "A")
         {
             SelectAll();
             return true;
         }
 
-        if (modifiers.HasFlag(ConsoleModifiers.Control) && (c == 'c' || c == 'C'))
+        if (control && text is "c" or "C" or "v" or "V")
         {
             return true;
         }
 
-        if (modifiers.HasFlag(ConsoleModifiers.Control) && (c == 'v' || c == 'V'))
-        {
-            return true;
-        }
+        var addLength = text.Length;
+        if (HasSelection)
+            addLength -= SelectedText.Length;
 
-        var addLength = HasSelection ? 1 - SelectedText.Length : 1;
         if (MaxLength > 0 && _text.Length + addLength > MaxLength)
             return false;
 
@@ -464,8 +475,8 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
             DeleteSelection();
         }
 
-        _text = _text.Insert(_cursorPosition, c.ToString());
-        _cursorPosition++;
+        _text = _text.Insert(_cursorPosition, text);
+        _cursorPosition += text.Length;
         OnTextBufferChanged();
         _textChanged.OnNext(Text);
         return true;

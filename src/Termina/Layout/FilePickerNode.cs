@@ -3,6 +3,7 @@
 
 using System.IO.Enumeration;
 using R3;
+using Termina.Input;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -209,16 +210,21 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
 
     #region Input Handling
 
-    public bool HandleInput(ConsoleKeyInfo key)
+    /// <inheritdoc />
+    public bool HandleInput(ConsoleKeyInfo key) => HandleInput(new KeyPressed(key));
+
+    /// <inheritdoc />
+    public bool HandleInput(KeyPressed input)
     {
         if (_isFiltering)
-            return HandleFilterInput(key);
+            return HandleFilterInput(input);
 
-        return HandleBrowsingInput(key);
+        return HandleBrowsingInput(input);
     }
 
-    private bool HandleBrowsingInput(ConsoleKeyInfo key)
+    private bool HandleBrowsingInput(KeyPressed input)
     {
+        var key = input.KeyInfo;
         switch (key.Key)
         {
             case ConsoleKey.UpArrow:
@@ -255,6 +261,12 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
                     return true;
                 }
 
+                if (!string.IsNullOrEmpty(input.Text))
+                {
+                    StartFiltering(input.Text);
+                    return true;
+                }
+
                 if (!char.IsControl(key.KeyChar) && key.KeyChar != '\0')
                 {
                     StartFiltering(key.KeyChar.ToString());
@@ -265,8 +277,9 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
         }
     }
 
-    private bool HandleFilterInput(ConsoleKeyInfo key)
+    private bool HandleFilterInput(KeyPressed input)
     {
+        var key = input.KeyInfo;
         switch (key.Key)
         {
             case ConsoleKey.Escape:
@@ -295,7 +308,7 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
                 }
 
                 var textBefore = _filterInput.Text;
-                var handled = _filterInput.HandleInput(key);
+                var handled = _filterInput.HandleInput(input);
                 if (handled)
                 {
                     if (string.IsNullOrEmpty(_filterInput.Text))
@@ -506,13 +519,8 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
         _filterInput.Clear();
 
         // Seed with initial text if provided
-        if (!string.IsNullOrEmpty(initialText))
-        {
-            foreach (var c in initialText)
-            {
-                _filterInput.HandleInput(new ConsoleKeyInfo(c, ConsoleKey.None, false, false, false));
-            }
-        }
+        _filterInput.Text = initialText;
+        _filterInput.MoveCursorToEnd();
 
         ApplyFilter();
         Invalidate();

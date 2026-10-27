@@ -983,7 +983,7 @@ public sealed class TerminaApplication : IInlineOutput
                 }
 
                 // BUBBLE PHASE: Focused components handle remaining keys
-                if (_focusManager.RouteInput(keyPressed.KeyInfo))
+                if (_focusManager.RouteInput(keyPressed))
                 {
                     TerminaTrace.Input.Trace(this, "Key consumed by focused component");
                     return; // Input was consumed by focused component

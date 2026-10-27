@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using R3;
+using Termina.Input;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -241,8 +242,13 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
     }
 
     /// <inheritdoc />
-    public bool HandleInput(ConsoleKeyInfo key)
+    public bool HandleInput(ConsoleKeyInfo key) => HandleInput(new KeyPressed(key));
+
+    /// <inheritdoc />
+    public bool HandleInput(KeyPressed input)
     {
+        var key = input.KeyInfo;
+
         // Handle Escape to dismiss
         if (_dismissOnEscape && key.Key == ConsoleKey.Escape)
         {
@@ -253,7 +259,7 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
         // Forward input to content if it's focusable
         if (_content is IFocusable focusable && focusable.CanFocus)
         {
-            return focusable.HandleInput(key);
+            return focusable.HandleInput(input);
         }
 
         // Modal consumes all input to prevent it reaching underlying UI
