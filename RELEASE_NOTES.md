@@ -1,3 +1,26 @@
+# Release Notes — Termina 0.17.1
+
+**Release date:** 2026-10-27
+
+####
+
+**Bug Fixes**
+
+- **A terminal capability reply no longer lands in the text input as typed characters** ([#415](https://github.com/Aaronontheweb/termina/pull/415), fixes [#414](https://github.com/Aaronontheweb/termina/issues/414))
+  - Termina asks the terminal for its primary device attributes at startup. Windows Terminal answers with a 38-character reply.
+  - `TerminalCapabilityResponseDecoder.CouldBeResponse` rejected any reply longer than 32 characters. The parser then flushed the reply as raw key events, so the characters appeared in the focused text input.
+  - The reply did not clear on `Esc` or `Ctrl+C`. It cleared only on `Backspace`, because the characters were committed input.
+  - The bound is now 64 characters. It still stops the parser from buffering an endless `[?</c>` sequence, and the shape check still rejects non-parameter characters.
+  - A short VT100 reply is consumed as before.
+
+**Maintenance**
+
+- **Pinned GitHub Actions to commit SHAs** ([#401](https://github.com/Aaronontheweb/termina/pull/401))
+- **Bumped the .NET SDK to 10.0.401 and `Microsoft.SourceLink.GitHub` to 10.0.402** ([#393](https://github.com/Aaronontheweb/termina/pull/393))
+- **Used `npm ci` for docs and pinned the release action** ([#413](https://github.com/Aaronontheweb/termina/pull/413))
+
+####
+
 # Release Notes — Termina 0.17.0
 
 **Release date:** 2026-10-16
