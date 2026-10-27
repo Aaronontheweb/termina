@@ -48,8 +48,14 @@ def read_available(fd: int, timeout: float) -> bytes:
     return b"".join(chunks)
 
 
-def run_case(label: str, reply: bytes, events_path: Path, demo_cmd: list[str]) -> dict:
-    """Run the demo under a PTY, inject reply bytes, and return the recorded events."""
+def run_case(
+    label: str, reply: bytes, events_path: Path, demo_cmd: list[str], sentinel: str
+) -> dict:
+    """Run the demo under a PTY, inject reply bytes, then type a sentinel.
+
+    The sentinel is the positive control. Without it, a harness that only checks
+    "no text leaked" would also pass if input processing stalled entirely.
+    """
     if events_path.exists():
         events_path.unlink()
 
@@ -84,6 +90,11 @@ def run_case(label: str, reply: bytes, events_path: Path, demo_cmd: list[str]) -
         os.write(master_fd, reply)
         read_available(master_fd, 1.5)
 
+        # Positive control: type ordinary text after the reply. If input processing
+        # stalled, this text never arrives and the "no leak" assertion proves nothing.
+        os.write(master_fd, sentinel.encode())
+        read_available(master_fd, 1.5)
+
         # Quit cleanly so the recorder flushes.
         os.write(master_fd, b"\x11")  # Ctrl+Q
         read_available(master_fd, 1.0)
@@ -113,20 +124,31 @@ def run_case(label: str, reply: bytes, events_path: Path, demo_cmd: list[str]) -
     return {"label": label, "reply": reply, "events": events}
 
 
-def leaked_text(events: list[dict]) -> str:
-    """Return the input text the app recorded, ignoring empty events.
+def recorded_text(events: list[dict]) -> str:
+    """Return the final input buffer the app recorded.
 
-    A leaked DA1 reply shows up as a run of TextChanged events that echo the
-    reply's own characters. The recorder also emits invalid JSON when a raw ESC
-    byte reaches the input, so those lines arrive here as synthetic text events.
+    The recorder emits cumulative TextChanged snapshots, so the last non-empty
+    snapshot is the whole buffer. Concatenating snapshots would repeat every
+    prefix. The recorder also emits invalid JSON when a raw ESC byte reaches the
+    input, so those lines arrive here as synthetic text events.
     """
-    parts = []
+    final = ""
     for evt in events:
         if evt.get("phase") == "text":
             text = evt.get("text", "")
             if text:
-                parts.append(text)
-    return "".join(parts)
+                final = text
+    return final
+
+
+def strip_sentinel(text: str, sentinel: str) -> str:
+    """Remove the positive-control sentinel so only leaked bytes remain.
+
+    The recorder emits cumulative TextChanged snapshots, so the sentinel appears
+    in every snapshot after it is typed. Removing all occurrences leaves the
+    characters that arrived before it, which is exactly the leak surface.
+    """
+    return text.replace(sentinel, "")
 
 
 def summarize_leak(text: str) -> str:
@@ -155,8 +177,12 @@ def main() -> int:
     failures = []
 
     # Case 1: the long Windows Terminal reply must be consumed, not typed.
-    long_case = run_case("windows-terminal", DA1_REPLY, events_path, demo_cmd)
-    long_leak = leaked_text(long_case["events"])
+    long_sentinel = "sentinel-long"
+    long_case = run_case(
+        "windows-terminal", DA1_REPLY, events_path, demo_cmd, long_sentinel
+    )
+    long_text = recorded_text(long_case["events"])
+    long_leak = strip_sentinel(long_text, long_sentinel)
     (artifacts / "windows-terminal-events.jsonl").write_text(
         "\n".join(json.dumps(e) for e in long_case["events"])
     )
@@ -167,8 +193,12 @@ def main() -> int:
         )
 
     # Case 2: the short VT100 reply must still be consumed.
-    short_case = run_case("vt100", SHORT_DA1_REPLY, events_path, demo_cmd)
-    short_leak = leaked_text(short_case["events"])
+    short_sentinel = "sentinel-short"
+    short_case = run_case(
+        "vt100", SHORT_DA1_REPLY, events_path, demo_cmd, short_sentinel
+    )
+    short_text = recorded_text(short_case["events"])
+    short_leak = strip_sentinel(short_text, short_sentinel)
     (artifacts / "vt100-events.jsonl").write_text(
         "\n".join(json.dumps(e) for e in short_case["events"])
     )
@@ -180,6 +210,15 @@ def main() -> int:
     for case in (long_case, short_case):
         if not any(e.get("phase") == "startup" for e in case["events"]):
             failures.append(f"{case['label']}: no startup event recorded")
+
+    # Positive control: ordinary text typed after the reply must reach the input.
+    # Without this, "no leak" would also pass if input processing stalled entirely.
+    for case, sentinel in ((long_case, long_sentinel), (short_case, short_sentinel)):
+        if sentinel not in recorded_text(case["events"]):
+            failures.append(
+                f"{case['label']}: positive control failed — typed text {sentinel!r} "
+                "never reached the input, so the no-leak result proves nothing"
+            )
 
     if failures:
         for failure in failures:
