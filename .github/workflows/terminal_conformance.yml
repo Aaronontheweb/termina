@@ -39,6 +39,32 @@ jobs:
           name: conformance-baseline
           path: ${{ runner.temp }}/conformance-baseline
 
+  linux-da1-injection:
+    name: Linux-DA1-Injection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: ./global.json
+
+      - name: Build conformance demo
+        run: dotnet build demos/Termina.Demo.Conformance/Termina.Demo.Conformance.csproj -c Release
+
+      - name: Run DA1 injection harness
+        run: bash tests/conformance/linux/run-da1-injection.sh "$RUNNER_TEMP/conformance-da1"
+
+      - name: Upload DA1 artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: conformance-da1
+          path: ${{ runner.temp }}/conformance-da1
+
   linux-kitty:
     name: Linux-Kitty-Selection
     runs-on: ubuntu-latest

@@ -19,6 +19,7 @@ The initial automation target is Linux on GitHub-hosted runners:
 Current Linux coverage:
 
 - baseline PTY startup captures legacy mouse-tracking setup bytes
+- DA1 injection writes a real Windows Terminal device-attributes reply into a live PTY and asserts it never reaches the focused text input
 - kitty under `Xvfb` checks native selection, explicit copy to clipboard, clipboard paste into focused input, alternate-scroll setup, kitty keyboard setup, and no mouse-tracking setup
 - tmux checks raw key routing, tmux mouse on/off metadata, and bracketed paste delivery into focused input
 - kitty + tmux checks native selection, explicit copy to clipboard, clipboard paste into focused input, and no mouse-tracking setup while passing through tmux
