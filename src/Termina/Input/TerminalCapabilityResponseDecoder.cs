@@ -8,10 +8,18 @@ namespace Termina.Input;
 /// </summary>
 internal static class TerminalCapabilityResponseDecoder
 {
+    /// <summary>
+    /// Upper bound on a capability response, in characters. The bound stops the parser
+    /// from buffering an endless <c>[?</c> sequence. It must stay above the largest real
+    /// reply: Windows Terminal answers DA1 with 38 characters
+    /// (<c>[?61;4;6;7;14;21;22;23;24;28;32;42;52c</c>).
+    /// </summary>
+    private const int MaxResponseLength = 64;
+
     public static bool CouldBeResponse(InputSequence sequence)
     {
         var text = sequence.Text;
-        if (!text.StartsWith("[?", StringComparison.Ordinal) || text.Length > 32)
+        if (!text.StartsWith("[?", StringComparison.Ordinal) || text.Length > MaxResponseLength)
             return false;
 
         return ContainsOnlyParameters(text.AsSpan(2));
