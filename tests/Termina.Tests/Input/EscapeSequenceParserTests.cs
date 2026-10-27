@@ -395,6 +395,35 @@ public class EscapeSequenceParserTests
     }
 
     [Fact]
+    public void PrimaryDeviceAttributesResponse_WindowsTerminalLongReply_ClosesCapabilityProbe()
+    {
+        // Windows Terminal answers DA1 with 38 characters. A 32-character cap in
+        // TerminalCapabilityResponseDecoder rejected it, so the reply flushed as raw
+        // KeyPressed events and landed in the focused text input as typed text.
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, "[?61;4;6;7;14;21;22;23;24;28;32;42;52c"));
+
+        Assert.IsType<PrimaryDeviceAttributesReported>(Assert.Single(events));
+        Assert.False(parser.IsBufferingEscape);
+    }
+
+    [Fact]
+    public void PrimaryDeviceAttributesResponse_OverlongReply_FlushesAsRawKeys()
+    {
+        // The bound still exists: a [?</c> sequence longer than the cap must not buffer forever.
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, "[?" + new string('1', 70) + "c"));
+
+        Assert.DoesNotContain(events, e => e is PrimaryDeviceAttributesReported);
+        Assert.Contains(events, e => e is KeyPressed);
+        Assert.False(parser.IsBufferingEscape);
+    }
+
+    [Fact]
     public void CsiU_CtrlEnter_InsertsNewlineInTextAreaNode()
     {
         // End-to-end: CSI u Ctrl+Enter should insert a newline in a TextAreaNode
